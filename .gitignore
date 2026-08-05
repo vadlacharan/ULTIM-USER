@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Expo / React Native
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+*.app
+*.keystore
+coverage/
+android/.gradle/
+android/app/build/
+android/build/
+
+# Logs
+npm-debug.*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# macOS
+.DS_Store
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editors / tooling
+.vscode/
+.idea/
+
+# TypeScript
+*.tsbuildinfo
+
+# Misc
+*.orig

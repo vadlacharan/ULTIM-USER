@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "ultim",
+    "slug": "ultim",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#131312"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ultim.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allow ULTIM to access your location to discover nearby sports and fitness centers.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow ULTIM to access your location to discover nearby sports and fitness centers."
+      }
+    },
+    "android": {
+      "package": "com.ultim.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#131312"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow ULTIM to access your location to discover nearby sports and fitness centers."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/logo.png",
+          "color": "#FF5722"
+        }
+      ],
+      "expo-secure-store",
+      "expo-splash-screen",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "51a1e8d8-967d-427f-b59e-91bfe37abb17"
+      }
+    }
+  }
+}
