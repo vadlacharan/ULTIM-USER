@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, Animated, Easing, Pressable } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FONTS, RADIUS, SPACING } from '../theme/theme';
+import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../theme/theme';
+import { getActivityIcon } from '../utils/activityIcons';
 import { UserMembership } from '../types';
-import { StatusBadge } from './StatusBadge';
-import { CreditIcon } from './CreditIcon';
-import { GradientButton } from './buttons';
 import { useApp } from '../context/AppContext';
 
 interface MembershipCardProps {
@@ -14,35 +12,32 @@ interface MembershipCardProps {
   onBookSession: () => void;
 }
 
-// Credit-health tiers — the meter's gradient + label react to how many
-// credits are left (like a battery indicator) instead of a flat static bar.
-const getCreditTier = (percent: number): { gradient: [string, string]; solid: string; label: string } => {
-  if (percent > 60) {
-    return { gradient: ['#34D399', '#059669'], solid: '#10B981', label: 'HEALTHY' };
-  }
-  if (percent > 25) {
-    return { gradient: ['#FBBF24', '#F59E0B'], solid: '#F59E0B', label: 'RUNNING LOW' };
-  }
-  return { gradient: ['#FB7185', '#E11D48'], solid: '#F43F5E', label: 'CRITICAL' };
+// Credit-health tiers — used on the muted (non-active) card variant.
+const getCreditTier = (percent: number): { solid: string; label: string } => {
+  if (percent > 60) return { solid: COLORS.secondary, label: 'HEALTHY' };
+  if (percent > 25) return { solid: COLORS.primary, label: 'RUNNING LOW' };
+  return { solid: COLORS.error, label: 'CRITICAL' };
 };
 
-export const MembershipCard: React.FC<MembershipCardProps> = ({
-  membership,
-  onBookSession,
-}) => {
+/**
+ * Member pass card — a bold accent-coloured pass for active memberships
+ * (logo mark, live credit count, big facility name, usage meter, expiry and
+ * a dark "book" pill), and a muted glass variant for expired passes.
+ */
+export const MembershipCard: React.FC<MembershipCardProps> = ({ membership, onBookSession }) => {
   const { colors } = useApp();
+  const isActive = membership.status === 'ACTIVE';
+
   const percentRemaining =
     membership.totalCredits > 0
       ? Math.max(0, Math.min(100, (membership.remainingCredits / membership.totalCredits) * 100))
       : 0;
-
+  const usedPercent = Math.round(100 - percentRemaining);
   const tier = getCreditTier(percentRemaining);
-  const isActive = membership.status === 'ACTIVE';
+  const activityIcon = getActivityIcon(membership.validActivities?.[0] || membership.planTitle);
 
-  // Fill-in animation — the bar grows from 0 to its real value on mount
-  // instead of just snapping into place.
+  // Fill-in animation — the meter grows to its real value on mount.
   const fillAnim = useRef(new Animated.Value(0)).current;
-  // Looping shimmer sweep across the filled portion for a "premium" feel.
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const [trackWidth, setTrackWidth] = useState(0);
 
@@ -61,7 +56,7 @@ export const MembershipCard: React.FC<MembershipCardProps> = ({
     if (!trackWidth) return;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.delay(800),
+        Animated.delay(600),
         Animated.timing(shimmerAnim, {
           toValue: 1,
           duration: 1300,
@@ -89,79 +84,92 @@ export const MembershipCard: React.FC<MembershipCardProps> = ({
     outputRange: [-60, trackWidth + 60],
   });
 
-  return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
-      ]}
-    >
-      {/* Decorative corner sheen — subtle "premium card" feel */}
-      <LinearGradient
-        colors={isActive ? (['rgba(255,87,34,0.14)', 'transparent'] as const) : (['rgba(120,120,120,0.10)', 'transparent'] as const)}
-        start={{ x: 1, y: 0 }}
-        end={{ x: 0.25, y: 1 }}
-        style={styles.cornerGlow}
-        pointerEvents="none"
+  // ── Palette ───────────────────────────────────────────────────────────────
+  const text = colors.onSurface;
+  const textSoft = colors.textMuted;
+  const textFaint = 'rgba(255,255,255,0.42)';
+  const trackColor = 'rgba(255,255,255,0.10)';
+  const fillColor = isActive ? COLORS.secondary : tier.solid;
+  const shimmerColor = 'rgba(255,255,255,0.45)';
+  const markBg = colors.glassHigh;
+  const markBorder = colors.glassBorder;
+  const markIcon = isActive ? COLORS.secondary : colors.textMuted;
+  const tierBg = colors.glassHigh;
+  const tierBorder = colors.glassBorder;
+  const btnBg = isActive ? COLORS.primary : 'transparent';
+  const btnText = isActive ? COLORS.onPrimary : colors.primary;
+
+  const card = (
+    <>
+      {/* Decorative sport glyph bleeding off the corner */}
+      <MaterialCommunityIcons
+        name={activityIcon}
+        size={150}
+        color="rgba(255,255,255,0.05)"
+        style={styles.decorGlyph}
       />
 
-      <View style={styles.cardHeader}>
-        <View style={styles.identityRow}>
-          <LinearGradient
-            colors={isActive ? (['#FF8A50', '#FF5722'] as const) : ([colors.surfaceHigh, colors.surfaceHigh] as const)}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.chipIcon}
-          >
-            <Ionicons name="card" size={18} color={isActive ? '#FFF' : colors.textMuted} />
-          </LinearGradient>
-          <View style={styles.identityTextCol}>
-            <Text style={[styles.facilityName, { color: colors.onSurface }]} numberOfLines={1}>
-              {membership.facilityName}
-            </Text>
-            <Text style={[styles.planTitle, { color: colors.primary }]} numberOfLines={1}>
-              {membership.planTitle}
-            </Text>
-          </View>
+      {/* ── Header: mark + credit count ── */}
+      <View style={[styles.headerRow, !isActive && styles.headerRowCompact]}>
+        <View style={[styles.mark, { backgroundColor: markBg, borderColor: markBorder }]}>
+          <MaterialCommunityIcons name={activityIcon} size={20} color={markIcon} />
         </View>
-        <StatusBadge
-          label={membership.status}
-          type={membership.status === 'ACTIVE' ? 'active' : 'past'}
-        />
+
+        <View style={styles.creditsCol}>
+          <View style={styles.creditsRow}>
+            <Text style={[styles.creditsNum, { color: text }]}>{membership.remainingCredits}</Text>
+            <Text style={[styles.creditsWord, { color: textSoft }]}>credits</Text>
+          </View>
+          <Text style={[styles.creditsOf, { color: textFaint }]}>
+            OF {membership.totalCredits} THIS CYCLE
+          </Text>
+        </View>
       </View>
 
-      {/* Credit Progress Meter */}
-      <View style={[styles.creditMeterContainer, { backgroundColor: colors.surfaceLow }]}>
-        <View style={styles.creditMeterHeader}>
-          <View style={styles.creditMeterValueRow}>
-            <Text style={[styles.creditsNum, { color: colors.onSurface }]}>
-              {membership.remainingCredits}
-            </Text>
-            <Text style={[styles.creditMeterVal, { color: colors.textMuted }]}>
-              / {membership.totalCredits}
-            </Text>
-            <CreditIcon size={18} />
-          </View>
+      {/* ── Identity ── */}
+      <Text
+        style={[
+          styles.facilityName,
+          !isActive && styles.facilityNameCompact,
+          { color: text },
+        ]}
+        numberOfLines={isActive ? 2 : 1}
+      >
+        {membership.facilityName}
+      </Text>
+      <Text style={[styles.planTitle, { color: textSoft }]} numberOfLines={1}>
+        {membership.planTitle}
+      </Text>
 
+      {/* ── Usage meter (active passes only) ── */}
+      {isActive && (
+      <View style={styles.meterBlock}>
+        <View style={styles.meterHeader}>
+          <Text style={[styles.meterLabel, { color: textFaint }]}>USED {usedPercent}%</Text>
+          <View style={[styles.tierChip, { backgroundColor: tierBg, borderColor: tierBorder }]}>
+            <View
+              style={[
+                styles.tierDot,
+                { backgroundColor: isActive ? COLORS.secondary : tier.solid },
+              ]}
+            />
+            <Text style={[styles.tierText, { color: textSoft }]}>
+              {membership.status}
+            </Text>
+          </View>
         </View>
 
         <View
-          style={[styles.progressBarTrack, { backgroundColor: colors.surfaceHigh }]}
+          style={[styles.track, { backgroundColor: trackColor }]}
           onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
         >
-          <Animated.View style={[styles.progressBarFill, { width: fillWidth }]}>
-            <LinearGradient
-              colors={tier.gradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
-            />
+          <Animated.View style={[styles.fill, { width: fillWidth, backgroundColor: fillColor }]}>
             {trackWidth > 0 && (
               <Animated.View
                 style={[styles.shimmer, { transform: [{ translateX: shimmerTranslate }] }]}
               >
                 <LinearGradient
-                  colors={['transparent', 'rgba(255,255,255,0.65)', 'transparent'] as const}
+                  colors={['transparent', shimmerColor, 'transparent'] as const}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={StyleSheet.absoluteFill}
@@ -171,129 +179,196 @@ export const MembershipCard: React.FC<MembershipCardProps> = ({
           </Animated.View>
         </View>
       </View>
+      )}
 
-      <View style={styles.dateValidityRow}>
-        <View style={styles.dateCol}>
-          <Ionicons name="calendar-outline" size={12} color={colors.textMuted} />
-          <Text style={[styles.dateText, { color: colors.textMuted }]}>
-            Expires: {membership.expiryDate}
-          </Text>
+      {/* ── Footer: expiry + action ── */}
+      <View style={[styles.footerRow, !isActive && styles.footerRowCompact]}>
+        <View style={styles.expiryCol}>
+          <Ionicons name="calendar-outline" size={13} color={textSoft} />
+          <Text style={[styles.expiryText, { color: textSoft }]}>Expires {membership.expiryDate}</Text>
         </View>
 
         {isActive && (
-          <GradientButton
-            label="BOOK SESSION"
-            icon="flash-sharp"
+          <Pressable
             onPress={onBookSession}
-            compact
-          />
+            style={({ pressed }) => [
+              styles.bookBtn,
+              SHADOWS.ember,
+              { backgroundColor: btnBg, opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <Ionicons name="flash-sharp" size={13} color={btnText} />
+            <Text style={[styles.bookBtnText, { color: btnText }]}>BOOK SESSION</Text>
+          </Pressable>
         )}
       </View>
+    </>
+  );
+
+  if (isActive) {
+    return (
+      <View style={[styles.wrapper, SHADOWS.card]}>
+        <View
+          style={[
+            styles.card,
+            styles.activeCard,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          <LinearGradient
+            colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0)']}
+            start={{ x: 1, y: 0 }}
+            end={{ x: 0.2, y: 0.9 }}
+            style={StyleSheet.absoluteFill}
+          />
+          {card}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={[
+        styles.wrapper,
+        styles.card,
+        styles.cardCompact,
+        SHADOWS.card,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder, borderWidth: 1 },
+      ]}
+    >
+      {card}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
+  wrapper: {
     marginBottom: SPACING.cardGap,
-    borderWidth: 1,
+    borderRadius: 22,
+  },
+  card: {
+    borderRadius: 22,
+    padding: SPACING.md,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
   },
-  cornerGlow: {
+  activeCard: {
+    borderWidth: 1,
+  },
+  cardCompact: {
+    padding: 14,
+  },
+  decorGlyph: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 150,
-    height: 150,
+    right: -26,
+    bottom: -34,
+    transform: [{ rotate: '-12deg' }],
   },
-  cardHeader: {
+
+  // ── Header ──
+  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 18,
   },
-  identityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 8,
+  headerRowCompact: {
+    marginBottom: 12,
   },
-  chipIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: RADIUS.md,
+  facilityNameCompact: {
+    fontSize: 19,
+    lineHeight: 23,
+    letterSpacing: -0.4,
+  },
+  footerRowCompact: {
+    marginTop: 10,
+  },
+  mark: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.full,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  identityTextCol: {
-    flex: 1,
-    marginLeft: 10,
+  creditsCol: {
+    alignItems: 'flex-end',
   },
-  facilityName: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.2,
-  },
-  planTitle: {
-    fontSize: 12,
-    fontFamily: FONTS.bold,
-    marginTop: 2,
-  },
-  creditMeterContainer: {
-    marginTop: SPACING.md,
-    padding: SPACING.sm,
-    borderRadius: RADIUS.lg,
-  },
-  creditMeterHeader: {
+  creditsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  creditMeterValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  creditMeterVal: {
-    fontSize: 15,
-    fontFamily: FONTS.medium,
+    alignItems: 'baseline',
+    gap: 6,
   },
   creditsNum: {
-    fontSize: 20,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.3,
+    fontSize: 26,
+    fontFamily: FONTS.black,
+    letterSpacing: -0.8,
   },
-  tierPill: {
+  creditsWord: {
+    fontSize: 14,
+    fontFamily: FONTS.bold,
+    letterSpacing: -0.2,
+  },
+  creditsOf: {
+    fontSize: 8.5,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.3,
+    marginTop: 3,
+  },
+
+  // ── Identity ──
+  facilityName: {
+    fontSize: 26,
+    fontFamily: FONTS.black,
+    letterSpacing: -0.7,
+    lineHeight: 30,
+  },
+  planTitle: {
+    fontSize: 13.5,
+    fontFamily: FONTS.semiBold,
+    marginTop: 4,
+  },
+
+  // ── Meter ──
+  meterBlock: {
+    marginTop: 20,
+  },
+  meterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 9,
+  },
+  meterLabel: {
+    fontSize: 9,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.4,
+  },
+  tierChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
     borderRadius: RADIUS.full,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   tierDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
-  tierPillText: {
-    fontSize: 9,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 0.3,
+  tierText: {
+    fontSize: 8.5,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.1,
   },
-  progressBarTrack: {
-    height: 10,
+  track: {
+    height: 7,
     borderRadius: RADIUS.full,
     overflow: 'hidden',
   },
-  progressBarFill: {
+  fill: {
     height: '100%',
     borderRadius: RADIUS.full,
     overflow: 'hidden',
@@ -304,20 +379,35 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 60,
   },
-  dateValidityRow: {
+
+  // ── Footer ──
+  footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: SPACING.sm,
+    marginTop: 18,
   },
-  dateCol: {
+  expiryCol: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
   },
-  dateText: {
-    fontSize: 11,
-    fontFamily: FONTS.regular,
-    lineHeight: 16,
-    marginLeft: 4,
+  expiryText: {
+    fontSize: 11.5,
+    fontFamily: FONTS.medium,
+  },
+  bookBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    height: 34,
+    borderRadius: RADIUS.full,
+  },
+  bookBtnText: {
+    fontSize: 10,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.2,
   },
 });

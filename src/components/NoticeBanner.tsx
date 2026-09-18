@@ -17,13 +17,12 @@ export const NoticeBanner: React.FC<NoticeBannerProps> = ({
       style={[
         styles.container,
         {
-          backgroundColor: 'rgba(255, 87, 34, 0.08)',
-          borderColor: 'rgba(255, 87, 34, 0.3)',
+          backgroundColor: 'rgba(255, 90, 31, 0.08)',
         },
       ]}
     >
       <View style={styles.iconBox}>
-        <Ionicons name="information-circle-outline" size={22} color={colors.primary} />
+        <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
       </View>
       <Text style={[styles.text, { color: colors.onSurface }]}>{message}</Text>
     </View>
@@ -34,18 +33,20 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 90, 31, 0.22)',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
     marginVertical: SPACING.sm,
   },
   iconBox: {
-    marginRight: 10,
+    marginRight: 9,
   },
   text: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 12.5,
     fontFamily: FONTS.medium,
-    lineHeight: 19,
+    lineHeight: 18,
   },
 });

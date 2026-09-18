@@ -86,27 +86,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: RADIUS.full,
-    borderWidth: 1.5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
   },
   regular: {
-    paddingVertical: 11.5,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
   },
   compact: {
     paddingVertical: 7,
-    paddingHorizontal: 14,
+    paddingHorizontal: 15,
   },
   text: {
-    fontFamily: FONTS.extraBold,
+    fontFamily: FONTS.bold,
     textAlign: 'center',
+    textTransform: 'uppercase',
   },
   textRegular: {
     fontSize: 13,
-    letterSpacing: 0.4,
+    letterSpacing: 1.6,
   },
   textCompact: {
-    fontSize: 11,
-    letterSpacing: 0.4,
+    fontSize: 10.5,
+    letterSpacing: 1.2,
   },
   iconLeft: {
     marginRight: 7,

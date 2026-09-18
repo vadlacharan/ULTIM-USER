@@ -10,17 +10,26 @@ import {
   RefreshControl,
   ImageBackground,
   Image,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
-import { Header } from '../components/Header';
+import { Header, useHeaderLayout } from '../components/Header';
+import { useTabBarClearance } from '../navigation/BlurTabBar';
 import { FacilityCard } from '../components/FacilityCard';
-import { StatusBadge } from '../components/StatusBadge';
 import { CreditIcon } from '../components/CreditIcon';
+import { SessionNowBar } from '../components/SessionNowBar';
+import { QRCodeModal } from '../components/QRCodeModal';
+import { api } from '../services/api';
 import { NoticeBanner } from '../components/NoticeBanner';
 import { GradientButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
-import { CategoryType, Facility } from '../types';
+import { AppBackground } from '../components/Background';
+import { Booking, CategoryType, Facility } from '../types';
+
+// Near You rail cards: big, but leave a deliberate "peek" of the next card
+// at the trailing edge so the scrollability is discoverable.
+const RAIL_CARD_WIDTH = Math.round(Dimensions.get('window').width - 104);
 
 interface HomeScreenProps {
   navigation: any;
@@ -42,6 +51,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  const { height: headerHeight } = useHeaderLayout();
+  const tabBarClearance = useTabBarClearance();
+  const [qrBooking, setQrBooking] = useState<Booking | null>(null);
+  const [loadingQrId, setLoadingQrId] = useState<string | null>(null);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -70,12 +84,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const todayBookings = bookings.filter((b) => b.status === 'UPCOMING');
 
-  const formatSessionDate = (dateStr: string): string => {
-    if (dateStr === 'Today' || dateStr === 'Tomorrow') return dateStr;
-    const parsed = new Date(dateStr);
-    if (isNaN(parsed.getTime())) return dateStr;
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${parsed.getDate()} ${months[parsed.getMonth()]}`;
+  // Open the check-in/check-out QR pass straight from the floating session bar.
+  const openBookingQr = async (booking: Booking) => {
+    const qrMode: 'CHECK_IN' | 'CHECK_OUT' = booking.successfulCheckedInTime
+      ? 'CHECK_OUT'
+      : 'CHECK_IN';
+    try {
+      setLoadingQrId(booking.id);
+      const res = await api.generateBookingQr(booking.id);
+      if (res?.token) {
+        setQrBooking({ ...booking, qrCodePayload: res.token, qrMode });
+        return;
+      }
+    } catch (e) {
+      console.log('[Home QR] Falling back to stored booking payload:', e);
+    } finally {
+      setLoadingQrId(null);
+    }
+    setQrBooking({ ...booking, qrMode });
   };
 
   const categoryCards: { label: CategoryType; title: string; image: any }[] = [
@@ -98,13 +124,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header onNotificationPress={() => navigation.navigate('Notifications')} />
-
+      <AppBackground />
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: headerHeight + 26, paddingBottom: tabBarClearance + (todayBookings.length > 0 ? 88 : 16) },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
+            progressViewOffset={headerHeight}
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={COLORS.primary}
@@ -145,7 +174,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.authBanner, { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh }]}
+            style={[styles.authBanner, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
             onPress={() => navigation.navigate('Auth')}
             activeOpacity={0.85}
           >
@@ -200,70 +229,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           })}
         </ScrollView>
 
-        {/* Today's Active Session Banner if any */}
-        {isAuthenticated && todayBookings.length > 0 && (
-          <View style={styles.todaySection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>UPCOMING SESSION</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('BookingsTab')}>
-                <Text style={styles.seeAllText}>VIEW ALL</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.todayCard, { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh }]}
-              onPress={() => navigation.navigate('BookingsTab')}
-              activeOpacity={0.92}
-            >
-              {/* Left accent bar */}
-              <View style={styles.todayAccentBar} />
-
-              <View style={styles.todayInner}>
-                {/* Top row: sport badge + date/time */}
-                <View style={styles.todayTopRow}>
-                  <StatusBadge label={todayBookings[0].sportType} type="active" />
-                  <View style={styles.todayTimePill}>
-                    <Ionicons name="time-outline" size={12} color={COLORS.primary} />
-                    <Text style={styles.todayTimeText}>
-                      {formatSessionDate(todayBookings[0].dateStr)} · {todayBookings[0].timeSlotLabel}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Facility identity row: thumbnail + name/address */}
-                <View style={styles.todayBodyRow}>
-                  <View style={styles.todayInfoCol}>
-                    <Text style={[styles.todayFacility, { color: colors.onSurface }]} numberOfLines={1}>
-                      {todayBookings[0].facilityName}
-                    </Text>
-                    <View style={styles.todayCourtRow}>
-                      <Ionicons name="location-outline" size={12} color={colors.textMuted} />
-                      <Text style={[styles.todayCourt, { color: colors.textMuted }]} numberOfLines={1}>
-                        {todayBookings[0].courtName}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Bottom CTA */}
-                <View style={[styles.todayActionRow, { borderTopColor: colors.surfaceHigh }]}>
-                  <View style={styles.todayCreditsChip}>
-                    <CreditIcon size={13} />
-                    <Text style={styles.todayCreditsText}>{todayBookings[0].creditsSpent} credits</Text>
-                  </View>
-                  <GradientButton
-                    label="Check-In QR"
-                    icon="qr-code-outline"
-                    onPress={() => navigation.navigate('BookingsTab')}
-                    compact
-                  />
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Facilities Near Me - Top 5 Nearest */}
+        {/* Facilities Near Me - Top 5 Nearest (horizontal rail) */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
             {selectedCategory === 'All' ? 'NEAR YOU' : `${selectedCategory.toUpperCase()} CENTERS`}
@@ -288,7 +254,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         ) : isLoading && !refreshing ? (
           <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 40 }} />
         ) : nearestFacilities.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh }]}>
+          <View style={[styles.emptyCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
             <Ionicons name="business-outline" size={40} color={colors.textMuted} />
             <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>No Facilities Available</Text>
             <Text style={[styles.emptySub, { color: colors.textMuted }]}>
@@ -296,15 +262,43 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </Text>
           </View>
         ) : (
-          nearestFacilities.map((facility: Facility) => (
-            <FacilityCard
-              key={facility.id}
-              facility={facility}
-              onPress={() => navigation.navigate('FacilityDetail', { facilityId: facility.id })}
-            />
-          ))
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.facilitiesRail}
+            contentContainerStyle={styles.railContent}
+          >
+            {nearestFacilities.map((facility: Facility) => (
+              <FacilityCard
+                key={facility.id}
+                facility={facility}
+                width={RAIL_CARD_WIDTH}
+                onPress={() => navigation.navigate('FacilityDetail', { facilityId: facility.id })}
+              />
+            ))}
+          </ScrollView>
         )}
       </ScrollView>
+
+      {/* Next session — floating "now playing" bar above the tab bar */}
+      {isAuthenticated && todayBookings.length > 0 && (
+        <SessionNowBar
+          booking={todayBookings[0]}
+          loading={loadingQrId === todayBookings[0].id}
+          onQrPress={() => openBookingQr(todayBookings[0])}
+        />
+      )}
+
+      {/* QR pass for the next session */}
+      <QRCodeModal
+        key={qrBooking ? qrBooking.id : 'home-qr-closed'}
+        visible={!!qrBooking}
+        booking={qrBooking}
+        onClose={() => setQrBooking(null)}
+      />
+
+      {/* Floating blur header — screens scroll behind it */}
+      <Header onNotificationPress={() => navigation.navigate('Notifications')} />
     </View>
   );
 };
@@ -324,12 +318,12 @@ const styles = StyleSheet.create({
   creditSummaryBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,87,34,0.06)',
+    backgroundColor: 'rgba(255,90,31,0.06)',
     borderRadius: RADIUS.lg,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,87,34,0.18)',
+    borderColor: 'rgba(255,90,31,0.18)',
     marginBottom: 20,
   },
   creditIconBox: {
@@ -360,11 +354,11 @@ const styles = StyleSheet.create({
   authBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: 14,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
     marginBottom: 20,
   },
   authBannerTitle: {
@@ -438,10 +432,10 @@ const styles = StyleSheet.create({
   },
   catGradient: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(19,19,18,0.22)',
+    backgroundColor: 'rgba(5,5,6,0.26)',
   },
   selectedCatGradient: {
-    backgroundColor: 'rgba(255,87,34,0.4)',
+    backgroundColor: 'rgba(255,90,31,0.4)',
   },
   catContent: {
     padding: 12,
@@ -458,118 +452,20 @@ const styles = StyleSheet.create({
   selectedCatTitle: {
     color: '#FFFFFF',
   },
-  // ── Upcoming session card ──
-  todaySection: {
-    marginBottom: 20,
+  // ── Facilities rail ──
+  facilitiesRail: {
+    marginTop: 2,
+    // Bleed the rail to the screen edges so the last card peeks out.
+    marginHorizontal: -SPACING.containerPadding,
   },
-  todayCard: {
-    backgroundColor: COLORS.surfaceContainer,
-    borderRadius: RADIUS.xl,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
-    flexDirection: 'row',
-    overflow: 'hidden',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
+  railContent: {
+    paddingLeft: SPACING.containerPadding,
+    paddingRight: SPACING.containerPadding,
   },
-  todayAccentBar: {
-    width: 4,
-    backgroundColor: COLORS.primary,
-    borderTopLeftRadius: RADIUS.xl,
-    borderBottomLeftRadius: RADIUS.xl,
-  },
-  todayInner: {
-    flex: 1,
-    padding: 14,
-    gap: 12,
-  },
-  todayTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  todayTimePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255,87,34,0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: RADIUS.full,
-    borderWidth: 1,
-    borderColor: 'rgba(255,87,34,0.25)',
-  },
-  todayTimeText: {
-    fontSize: 11,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-    letterSpacing: 0.2,
-  },
-  todayBodyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  todayThumb: {
-    width: 52,
-    height: 52,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surfaceLow,
-  },
-  todayThumbFallback: {
-    backgroundColor: 'rgba(255,87,34,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  todayInfoCol: {
-    flex: 1,
-    gap: 4,
-  },
-  todayFacility: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.onSurface,
-    letterSpacing: -0.3,
-  },
-  todayCourtRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  todayCourt: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: FONTS.medium,
-    color: COLORS.textMuted,
-  },
-  todayActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.surfaceHigh,
-  },
-  todayCreditsChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  todayCreditsText: {
-    fontSize: 12,
-    fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
-  },
-  // ── Facilities section ──
-  facilitiesSection: {
-    marginTop: 4,
-  },
+
   // ── Error / Empty / Loading ──
   errorCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.lg,
     alignItems: 'center',
@@ -595,13 +491,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   emptyCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     alignItems: 'center',
     marginVertical: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   emptyTitle: {
     color: COLORS.onSurface,

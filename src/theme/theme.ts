@@ -1,110 +1,140 @@
-export type ThemeMode = 'dark' | 'light';
+/**
+ * ULTIM Design System — "Ember on Black"
+ *
+ * A single, theme-agnostic dark system inspired by Spotify's content-first
+ * darkness: the UI recedes into near-black so facilities, passes, and credit
+ * numbers glow. Depth is expressed through surface lightness + heavy shadows
+ * (never raw gray borders), everything interactive is a pill, and the one and
+ * only functional accent is vibrant ember orange.
+ */
 
-export const DARK_COLORS = {
-  // Backgrounds & Surfaces (Twitter Lights Out & Shadcn UI Dark Black)
-  background: '#000000',
-  surface: '#000000',
-  surfaceDim: '#09090b',
-  surfaceBright: '#27272a',
-  surfaceLowest: '#000000',
-  surfaceLow: '#0e0e11',
-  surfaceContainer: '#09090b',
-  surfaceHigh: '#1f1f23',
-  surfaceHighest: '#27272a',
+// ─── Surfaces (Spotify-style lightness ladder) ───────────────────────────────
+export const COLORS = {
+  // Backgrounds & surfaces — depth through shade variation
+  background: '#050506', // deepest layer (behind the screen gradient)
+  surface: '#0E0E10', // Level 0 screen wash
+  surfaceDim: '#0B0B0D',
+  surfaceBright: '#232328',
+  surfaceLowest: '#0A0A0B',
+  surfaceLow: '#1F1F23', // chips, tracks, recessed controls
+  surfaceContainer: '#16161A', // cards
+  surfaceHigh: '#26262B', // dividers, subtle borders
+  surfaceHighest: '#303038',
 
-  // Text & Content (Shadcn Slate / Off-White)
-  onSurface: '#f4f4f5',
-  onSurfaceVariant: '#ffe4dc',
-  onBackground: '#f4f4f5',
-  textMuted: '#a1a1aa',
+  // Text & content — white + silver only
+  onSurface: '#FFFFFF',
+  onSurfaceVariant: '#CBcbcb',
+  onBackground: '#FFFFFF',
+  textMuted: '#B3B3B3',
 
-  // Primary Accent - Pure Vibrant Orange
-  primary: '#ff5722',
-  primaryContainer: '#ff5722',
-  onPrimary: '#ffffff',
+  // Primary Accent — functional ember orange only
+  primary: '#FF5A1F',
+  primaryContainer: '#FF7A3D',
+  onPrimary: '#0A0503', // near-black text ON orange (never white)
 
-  // Secondary Accent - Bright Warm Orange
-  secondary: '#ff7043',
-  secondaryContainer: '#ff7043',
-  onSecondary: '#ffffff',
+  // Secondary — warm amber/gold (member passes, credit moments & highlights)
+  secondary: '#E9B54C',
+  secondaryContainer: 'rgba(233,181,76,0.12)',
+  onSecondary: '#1E1710',
 
-  // Tertiary Accent - Soft Orange
-  tertiary: '#ff8a65',
-  tertiaryContainer: '#ff7043',
-  onTertiary: '#ffffff',
+  // Gold ramp — the secondary accent in three steps
+  gold: '#E9B54C',
+  goldSoft: '#F2C05F',
+  goldDeep: '#DD9F35',
+  goldPanel: 'rgba(233,181,76,0.12)',
+  goldBorder: 'rgba(233,181,76,0.28)',
+  /** Dark warm ink used on top of gold surfaces. */
+  ink: '#1E1710',
+  inkSoft: 'rgba(30,23,16,0.62)',
+  inkFaint: 'rgba(30,23,16,0.45)',
 
-  // Utility & Status
-  error: '#f87171',
-  errorContainer: '#7f1d1d',
-  outline: '#a1a1aa',
-  outlineVariant: '#27272a',
-  border: '#1f1f23',
+  // Tertiary — soft orange (notice / warning territory)
+  tertiary: '#FF8A50',
+  tertiaryContainer: '#2A1508',
+  onTertiary: '#0A0503',
+
+  // Utility & status
+  error: '#F3727F',
+  errorContainer: '#2B1214',
+  success: '#34D399',
+  successContainer: '#0B241B',
+  info: '#539DF5',
+  outline: '#4D4D4D',
+  outlineVariant: '#2A2A2E',
+  border: 'rgba(255,255,255,0.08)',
+
+  // Glass surfaces — used for empty/fallback/hero-less blocks so they read as
+  // frosted panels on the ember gradient instead of flat grey cards.
+  glass: 'rgba(255,255,255,0.045)',
+  glassHigh: 'rgba(255,255,255,0.075)',
+  glassBorder: 'rgba(255,255,255,0.10)',
+
+  // Ember-tinted panels — for credit/membership moments that should glow warm.
+  emberPanel: 'rgba(255,90,31,0.06)',
+  emberBorder: 'rgba(255,90,31,0.18)',
+
+  // Card hero overlays
   cardOverlayGradientStart: 'transparent',
-  cardOverlayGradientEnd: 'rgba(0, 0, 0, 0.95)',
+  cardOverlayGradientEnd: 'rgba(5, 5, 6, 0.96)',
 };
 
-export const LIGHT_COLORS = {
-  // Backgrounds & Surfaces
-  background: '#F5F6F8',
-  surface: '#FFFFFF',
-  surfaceDim: '#EAEBED',
-  surfaceBright: '#FFFFFF',
-  surfaceLowest: '#FFFFFF',
-  surfaceLow: '#F0F2F5',
-  surfaceContainer: '#FFFFFF',
-  surfaceHigh: '#E2E4E8',
-  surfaceHighest: '#D1D5DB',
-
-  // Text & Content
-  onSurface: '#111827',
-  onSurfaceVariant: '#374151',
-  onBackground: '#111827',
-  textMuted: '#6B7280',
-
-  // Primary Accent - Pure Vibrant Orange
-  primary: '#ff5722',
-  primaryContainer: '#FFEBE5',
-  onPrimary: '#ffffff',
-
-  // Secondary Accent - Bright Warm Orange
-  secondary: '#ff7043',
-  secondaryContainer: '#FFECE0',
-  onSecondary: '#ffffff',
-
-  // Tertiary Accent - Soft Orange
-  tertiary: '#ff8a65',
-  tertiaryContainer: '#FFEDD5',
-  onTertiary: '#ffffff',
-
-  // Utility & Status
-  error: '#DC2626',
-  errorContainer: '#FEE2E2',
-  outline: '#9CA3AF',
-  outlineVariant: '#E5E7EB',
-  border: '#E5E7EB',
-  cardOverlayGradientStart: 'transparent',
-  cardOverlayGradientEnd: 'rgba(255, 255, 255, 0.95)',
+// ─── Screen gradients ────────────────────────────────────────────────────────
+export const GRADIENTS = {
+  /** Full-screen wash: warm ember glow up top dissolving into pure black. */
+  screen: ['#1A0E07', '#0B0B0D', '#050506'] as const,
+  /** Ember radial glow color (top-right anchor). */
+  ember: '#FF5A1F',
+  /** Primary CTA gradient. */
+  primaryButton: ['#FF7A3D', '#FF4D12'] as const,
+  dangerButton: ['#F3727F', '#DC2626'] as const,
+  darkButton: ['#2C2C31', '#141417'] as const,
+  successButton: ['#34D399', '#059669'] as const,
 };
 
-let currentThemeMode: ThemeMode = 'dark';
-
-export const COLORS = { ...DARK_COLORS };
-
-export const applyTheme = (mode: ThemeMode) => {
-  currentThemeMode = mode;
-  Object.assign(COLORS, mode === 'light' ? LIGHT_COLORS : DARK_COLORS);
-};
-
-export const getThemeColors = (mode: ThemeMode = currentThemeMode) => {
-  return mode === 'light' ? LIGHT_COLORS : DARK_COLORS;
+// ─── Shadows ─────────────────────────────────────────────────────────────────
+// Spotify keeps shadows heavy because light shadows are invisible on black.
+export const SHADOWS = {
+  /** Cards: soft lift. */
+  card: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.32,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  /** Floating elements (tab bar, sheets): dramatic float. */
+  float: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  /** Orange glow for primary CTAs / active states. */
+  ember: {
+    shadowColor: '#FF5A1F',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  /** Warm amber glow for the member pass cards. */
+  gold: {
+    shadowColor: '#E9B54C',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.30,
+    shadowRadius: 18,
+    elevation: 8,
+  },
 };
 
 export const RADIUS = {
-  sm: 4,
+  sm: 6,
   default: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
+  md: 10,
+  lg: 14,
+  xl: 18,
+  card: 16,
   full: 9999,
 };
 
@@ -120,13 +150,9 @@ export const SPACING = {
 };
 
 /**
- * Font families — Public Sans (neutral, professional humanist sans-serif;
- * the same family used by the U.S. Web Design System). Loaded via
- * @expo-google-fonts/public-sans in App.tsx.
- *
- * Unlike a loud/geometric display face, Public Sans reads as calm and
- * credible at small sizes, which is why the scale below leans on lighter
- * weights and tighter, more restrained tracking than a typical "sporty" UI.
+ * Font families — Public Sans (loaded via @expo-google-fonts/public-sans in
+ * App.tsx). Plays the role of SpotifyMixUI: compact, functional, binary
+ * weight hierarchy (bold vs regular) rather than size inflation.
  */
 export const FONTS = {
   regular: 'PublicSans_400Regular',
@@ -138,76 +164,67 @@ export const FONTS = {
 };
 
 /**
- * Typography scale
- *
- * Guidelines baked into these tokens (apply the same logic anywhere a
- * one-off text style is defined instead of using this scale directly):
- *  - Reserve `black` (900) for hero numbers / display wordmarks only.
- *    Headings use `extraBold`/`bold` at most — it keeps things premium
- *    instead of shouty.
- *  - Large headings get slightly NEGATIVE letter-spacing (tighter, more
- *    editorial). Small uppercase labels get a little positive tracking,
- *    but modestly (0.4–0.6), not 1+.
- *  - Every size defines a lineHeight so text never feels cramped.
+ * Typography scale — compact (10–26px), bold/regular binary contrast,
+ * uppercase + wide tracking for the systematic button/label voice.
  */
 export const TYPOGRAPHY = {
   display: {
-    fontFamily: FONTS.extraBold,
-    fontSize: 44,
-    lineHeight: 50,
-    letterSpacing: -0.6,
+    fontFamily: FONTS.black,
+    fontSize: 34,
+    lineHeight: 40,
+    letterSpacing: -0.8,
   },
   h1: {
-    fontFamily: FONTS.extraBold,
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: -0.4,
+    fontFamily: FONTS.bold,
+    fontSize: 24,
+    lineHeight: 30,
+    letterSpacing: -0.5,
   },
   h2: {
     fontFamily: FONTS.bold,
-    fontSize: 19,
-    lineHeight: 25,
-    letterSpacing: -0.2,
+    fontSize: 18,
+    lineHeight: 24,
+    letterSpacing: -0.3,
   },
   h3: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 15,
+    fontFamily: FONTS.bold,
+    fontSize: 16,
     lineHeight: 21,
-    letterSpacing: -0.1,
+    letterSpacing: -0.2,
   },
   label: {
     fontFamily: FONTS.bold,
     fontSize: 11,
     lineHeight: 14,
-    letterSpacing: 0.6,
+    letterSpacing: 1.2,
     textTransform: 'uppercase' as const,
   },
   body: {
     fontFamily: FONTS.regular,
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 20,
   },
   bodyStrong: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.bold,
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 20,
   },
   caption: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.regular,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 16,
   },
   button: {
     fontFamily: FONTS.bold,
     fontSize: 13,
-    lineHeight: 16,
-    letterSpacing: 0.4,
+    lineHeight: 15,
+    letterSpacing: 1.6,
     textTransform: 'uppercase' as const,
   },
   number: {
-    fontFamily: FONTS.extraBold,
+    fontFamily: FONTS.black,
     fontSize: 30,
-    lineHeight: 36,
-    letterSpacing: -0.3,
+    lineHeight: 34,
+    letterSpacing: -0.5,
   },
 };

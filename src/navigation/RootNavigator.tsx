@@ -1,11 +1,10 @@
 import React from 'react';
-import { Platform, View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, FONTS } from '../theme/theme';
 import { useApp } from '../context/AppContext';
+import { COLORS } from '../theme/theme';
+import { BlurTabBar } from './BlurTabBar';
 
 // Screens
 import { AuthScreen } from '../screens/AuthScreen';
@@ -19,52 +18,20 @@ import { BookingFlowScreen } from '../screens/BookingFlowScreen';
 import { CategoryFacilitiesScreen } from '../screens/CategoryFacilitiesScreen';
 import { NotificationScreen } from '../screens/NotificationScreen';
 import { OfflineScreen } from '../screens/OfflineScreen';
+import { TransactionsScreen } from '../screens/TransactionsScreen';
+import { LegalScreen } from '../screens/LegalScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 const MainTabNavigator = () => {
-  const insets = useSafeAreaInsets();
-  const bottomPadding = Math.max(insets.bottom, 10);
-
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
+      tabBar={(props) => <BlurTabBar {...props} />}
+      screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: COLORS.background },
-        tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.surfaceHigh,
-          height: 56 + bottomPadding,
-          paddingBottom: bottomPadding,
-          paddingTop: 6,
-          elevation: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.2,
-          shadowRadius: 6,
-        },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textMuted,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontFamily: FONTS.semiBold,
-          letterSpacing: 0.2,
-        },
-        tabBarIcon: ({ focused, color }) => {
-          let iconName: any = 'home';
-          if (route.name === 'HomeTab') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'AccessTab') {
-            iconName = focused ? 'flash' : 'flash-outline';
-          } else if (route.name === 'BookingsTab') {
-            iconName = focused ? 'calendar' : 'calendar-outline';
-          } else if (route.name === 'ProfileTab') {
-            iconName = focused ? 'person' : 'person-outline';
-          }
-          return <Ionicons name={iconName} size={22} color={color} />;
-        },
-      })}
+      }}
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} options={{ tabBarLabel: 'HOME' }} />
       <Tab.Screen name="AccessTab" component={AccessScreen} options={{ tabBarLabel: 'ACCESS' }} />
@@ -75,7 +42,7 @@ const MainTabNavigator = () => {
 };
 
 export const RootNavigator = () => {
-  const { isAuthenticated, isBootstrapping, isOffline, facilities, refreshData } = useApp();
+  const { isAuthenticated, isGuest, isBootstrapping, isOffline, facilities, refreshData } = useApp();
 
   // Show a blank dark screen while restoring session — prevents login flash
   if (isBootstrapping) {
@@ -91,6 +58,8 @@ export const RootNavigator = () => {
     return <OfflineScreen onRetry={refreshData} />;
   }
 
+  const canBrowse = isAuthenticated || isGuest;
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -99,7 +68,7 @@ export const RootNavigator = () => {
         contentStyle: { backgroundColor: COLORS.background },
       }}
     >
-      {!isAuthenticated ? (
+      {!canBrowse ? (
         <Stack.Screen name="Auth" component={AuthScreen} />
       ) : (
         <>
@@ -109,7 +78,11 @@ export const RootNavigator = () => {
           <Stack.Screen name="BookingFlow" component={BookingFlowScreen} />
           <Stack.Screen name="CategoryFacilities" component={CategoryFacilitiesScreen} />
           <Stack.Screen name="Notifications" component={NotificationScreen} />
+          <Stack.Screen name="Transactions" component={TransactionsScreen} />
+          <Stack.Screen name="Legal" component={LegalScreen} />
           <Stack.Screen name="Offline" component={OfflineScreen} />
+          {/* Reachable from guest mode when prompts ask the user to sign in */}
+          <Stack.Screen name="Auth" component={AuthScreen} options={{ animation: 'slide_from_bottom' }} />
         </>
       )}
     </Stack.Navigator>

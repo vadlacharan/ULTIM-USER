@@ -19,24 +19,19 @@ import {
   adaptTransaction,
 } from '../services/adapters';
 
-import {
-  ThemeMode,
-  DARK_COLORS,
-  LIGHT_COLORS,
-  applyTheme,
-  getThemeColors,
-} from '../theme/theme';
+import { COLORS } from '../theme/theme';
 
 interface AppContextType {
-  // Theme
-  themeMode: ThemeMode;
-  isDark: boolean;
-  colors: typeof DARK_COLORS;
-  toggleTheme: () => void;
-  setThemeMode: (mode: ThemeMode) => void;
+  // Theme — single theme-agnostic "Ember on Black" system
+  colors: typeof COLORS;
 
   // Auth
   isAuthenticated: boolean;
+  /** Browsing without an account — main tabs are open, actions prompt sign-in. */
+  isGuest: boolean;
+  continueAsGuest: () => void;
+  /** Store-compliance: irreversibly deletes the account server-side + locally. */
+  deleteAccount: () => Promise<{ success: boolean; error?: string }>;
   user: UserProfile | null;
   sendPhoneOtp: (phone: string) => Promise<{ success: boolean; error?: string }>;
   loginWithPhone: (phone: string, otp: string) => Promise<{ success: boolean; error?: string; needsName?: boolean; pendingUserId?: string }>;
@@ -48,6 +43,8 @@ interface AppContextType {
   // Location
   currentLocation: string;
   setCurrentLocation: (loc: string, nearLngLat?: string, coords?: { latitude: number; longitude: number }) => void;
+  userCoords?: { latitude: number; longitude: number };
+  nearLngLat?: string;
 
   // Data Collections
   facilities: Facility[];
@@ -90,22 +87,10 @@ const SECURE_TOKEN_KEY = 'ultim_auth_token';
 const SECURE_USER_KEY = 'ultim_auth_user';
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [themeMode, setThemeModeState] = useState<ThemeMode>('dark');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isGuest, setIsGuest] = useState<boolean>(false);
   const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
   const [user, setUser] = useState<UserProfile | null>(null);
-
-  const setThemeMode = (mode: ThemeMode) => {
-    setThemeModeState(mode);
-    applyTheme(mode);
-    SecureStore.setItemAsync('ultim_theme_mode', mode).catch(() => {});
-  };
-
-  const toggleTheme = () => {
-    const next = themeMode === 'dark' ? 'light' : 'dark';
-    setThemeMode(next);
-  };
-
 
   const [currentLocation, setCurrentLocationState] = useState<string>('Hyderabad');
   const [facilities, setFacilities] = useState<Facility[]>([]);
@@ -253,12 +238,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // Restore persisted session then boot the app
     const bootstrapSession = async () => {
       try {
-        const savedTheme = await SecureStore.getItemAsync('ultim_theme_mode');
-        if (savedTheme === 'light' || savedTheme === 'dark') {
-          setThemeModeState(savedTheme as ThemeMode);
-          applyTheme(savedTheme as ThemeMode);
-        }
-
         const storedToken = await SecureStore.getItemAsync(SECURE_TOKEN_KEY);
         const storedUserRaw = await SecureStore.getItemAsync(SECURE_USER_KEY);
 
@@ -278,6 +257,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               };
               setUser(restoredUser);
               setIsAuthenticated(true);
+              setIsGuest(false);
               await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(restoredUser));
               fetchUserDataFromBackend(restoredUser.id);
             }
@@ -288,6 +268,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               const cachedUser: UserProfile = JSON.parse(storedUserRaw);
               setUser(cachedUser);
               setIsAuthenticated(true);
+              setIsGuest(false);
               setIsOffline(true);
             } catch (pErr) {
               console.log('[Auth Cache Restore Error]', pErr);
@@ -406,6 +387,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
         setUser(loggedUser);
         setIsAuthenticated(true);
+              setIsGuest(false);
         await SecureStore.setItemAsync(SECURE_TOKEN_KEY, res.token);
         await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(loggedUser));
         api.registerPushToken(`fcm-${loggedUser.id}-${Date.now()}`, 'android').catch(() => {});
@@ -434,6 +416,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
         setUser(loggedUser);
         setIsAuthenticated(true);
+              setIsGuest(false);
 
         // Persist token and user to SecureStore for auto-login on next launch
         await SecureStore.setItemAsync(SECURE_TOKEN_KEY, res.token);
@@ -480,6 +463,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
       setUser(loggedUser);
       setIsAuthenticated(true);
+              setIsGuest(false);
       await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(loggedUser));
       api.registerPushToken(`fcm-${userId}-${Date.now()}`, 'android').catch(() => {});
       await fetchUserDataFromBackend(userId);
@@ -491,6 +475,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const continueAsGuest = () => {
+    setIsGuest(true);
+  };
+
+  const deleteAccount = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (user?.id) {
+        await api.deleteAccount(user.id);
+      }
+    } catch (e) {
+      console.log('[AppContext] Account deletion error:', e);
+      return {
+        success: false,
+        error: 'We could not complete the deletion. Please contact support@ultim.app and we will remove your data.',
+      };
+    }
+    logout();
+    setIsGuest(false);
+    return { success: true };
+  };
+
   const logout = () => {
     if (user?.id) {
       api.unregisterPushToken(`fcm-${user.id}`).catch(() => {});
@@ -500,6 +505,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     SecureStore.deleteItemAsync(SECURE_TOKEN_KEY).catch(() => {});
     SecureStore.deleteItemAsync(SECURE_USER_KEY).catch(() => {});
     setIsAuthenticated(false);
+    setIsGuest(false);
     setUser(null);
     setUserMemberships([]);
     setBookings([]);
@@ -611,12 +617,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider
       value={{
-        themeMode,
-        isDark: themeMode === 'dark',
-        colors: getThemeColors(themeMode),
-        toggleTheme,
-        setThemeMode,
+        colors: COLORS,
         isAuthenticated,
+        isGuest,
+        continueAsGuest,
+        deleteAccount,
         user,
         sendPhoneOtp,
         loginWithPhone,
@@ -625,6 +630,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateFullName,
         logout,
         currentLocation,
+        userCoords,
+        nearLngLat,
         setCurrentLocation,
         facilities,
         plans,

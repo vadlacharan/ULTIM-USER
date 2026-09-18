@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS, RADIUS, SPACING } from '../theme/theme';
 import { useApp } from '../context/AppContext';
+import { AppBackground } from '../components/Background';
 import { GradientButton } from '../components/buttons';
 
 type AuthMode = 'PHONE' | 'EMAIL';
@@ -100,7 +101,7 @@ const OtpBoxes: React.FC<OtpBoxesProps> = ({ value, onChange, colors, disabled, 
                   borderRadius: 16,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: colors.surfaceLow,
+                  backgroundColor: colors.glassHigh,
                   borderWidth: isActive ? 2 : 1.5,
                   borderColor: boxBorderColor,
                 },
@@ -145,16 +146,26 @@ const OtpBoxes: React.FC<OtpBoxesProps> = ({ value, onChange, colors, disabled, 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Auth Screen
 // ─────────────────────────────────────────────────────────────────────────────
-export const AuthScreen: React.FC = () => {
+export const AuthScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
   const {
     sendPhoneOtp,
     loginWithPhone,
     loginWithEmail,
     registerWithEmail,
     updateFullName,
+    continueAsGuest,
+    isAuthenticated,
     isLoading,
     colors,
   } = useApp();
+
+  // Signed in while browsing as a guest (Auth was pushed over the tabs) —
+  // pop straight back into the app.
+  useEffect(() => {
+    if (isAuthenticated && navigation?.canGoBack?.()) {
+      navigation.goBack();
+    }
+  }, [isAuthenticated, navigation]);
   const insets = useSafeAreaInsets();
 
   const [authMode, setAuthMode] = useState<AuthMode>('PHONE');
@@ -305,6 +316,7 @@ export const AuthScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+        <AppBackground />
         <View
           style={{
             flex: 1,
@@ -400,6 +412,7 @@ export const AuthScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <AppBackground />
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -409,6 +422,16 @@ export const AuthScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* ── BRAND HERO ──────────────────────────────────────────────── */}
+        {navigation?.canGoBack?.() && (
+          <TouchableOpacity
+            style={[styles.backChip, { backgroundColor: colors.glassHigh, borderColor: colors.glassBorder }]}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={16} color={colors.onSurface} />
+            <Text style={[styles.backChipText, { color: colors.onSurface }]}>Back to browsing</Text>
+          </TouchableOpacity>
+        )}
         <View style={styles.hero}>
           <View style={[styles.badge, { borderColor: `${colors.primary}44` }]}>
             <View style={[styles.badgeDot, { backgroundColor: colors.primary }]} />
@@ -440,7 +463,7 @@ export const AuthScreen: React.FC = () => {
 
         {/* ── MODE TOGGLE ──────────────────────────────────────────────── */}
         {otpStep !== 'NAME_INPUT' && (
-          <View style={[styles.modeRow, { backgroundColor: colors.surfaceContainer, borderColor: colors.border }]}>
+          <View style={[styles.modeRow, { backgroundColor: colors.glass, borderColor: colors.border }]}>
             {(['PHONE', 'EMAIL'] as AuthMode[]).map((m) => (
               <TouchableOpacity
                 key={m}
@@ -462,7 +485,7 @@ export const AuthScreen: React.FC = () => {
         )}
 
         {/* ── FORM CARD ────────────────────────────────────────────────── */}
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainer, borderColor: colors.border }]}>
+        <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.border }]}>
 
           {/* ═══ PHONE FLOW ═══ */}
           {authMode === 'PHONE' && (
@@ -473,7 +496,7 @@ export const AuthScreen: React.FC = () => {
                   <Text style={[styles.cardSub, { color: colors.textMuted }]}>
                     We'll send a one-time 4-digit code via SMS.
                   </Text>
-                  <View style={[styles.inputWrap, inputBorder('phone'), { backgroundColor: colors.surfaceLow }]}>
+                  <View style={[styles.inputWrap, inputBorder('phone'), { backgroundColor: colors.glassHigh }]}>
                     <Ionicons name="call-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: colors.onSurface, fontFamily: FONTS.regular }]}
@@ -510,7 +533,7 @@ export const AuthScreen: React.FC = () => {
                   <Text style={[styles.cardSub, { color: colors.textMuted, textAlign: 'center' }]}>
                     What should we call you?
                   </Text>
-                  <View style={[styles.inputWrap, inputBorder('name'), { backgroundColor: colors.surfaceLow }]}>
+                  <View style={[styles.inputWrap, inputBorder('name'), { backgroundColor: colors.glassHigh }]}>
                     <Ionicons name="person-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: colors.onSurface, fontFamily: FONTS.regular }]}
@@ -561,7 +584,7 @@ export const AuthScreen: React.FC = () => {
 
               {emailSubTab === 'LOGIN' && (
                 <View style={{ marginTop: 20 }}>
-                  <View style={[styles.inputWrap, inputBorder('email'), { backgroundColor: colors.surfaceLow }]}>
+                  <View style={[styles.inputWrap, inputBorder('email'), { backgroundColor: colors.glassHigh }]}>
                     <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: colors.onSurface, fontFamily: FONTS.regular }]}
@@ -576,7 +599,7 @@ export const AuthScreen: React.FC = () => {
                       editable={!isBusy}
                     />
                   </View>
-                  <View style={[styles.inputWrap, inputBorder('pass'), { backgroundColor: colors.surfaceLow, marginTop: 12 }]}>
+                  <View style={[styles.inputWrap, inputBorder('pass'), { backgroundColor: colors.glassHigh, marginTop: 12 }]}>
                     <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: colors.onSurface, fontFamily: FONTS.regular }]}
@@ -613,7 +636,7 @@ export const AuthScreen: React.FC = () => {
 
               {emailSubTab === 'REGISTER' && (
                 <View style={{ marginTop: 20 }}>
-                  <View style={[styles.inputWrap, inputBorder('rname'), { backgroundColor: colors.surfaceLow }]}>
+                  <View style={[styles.inputWrap, inputBorder('rname'), { backgroundColor: colors.glassHigh }]}>
                     <Ionicons name="person-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: colors.onSurface, fontFamily: FONTS.regular }]}
@@ -627,7 +650,7 @@ export const AuthScreen: React.FC = () => {
                       editable={!isBusy}
                     />
                   </View>
-                  <View style={[styles.inputWrap, inputBorder('remail'), { backgroundColor: colors.surfaceLow, marginTop: 12 }]}>
+                  <View style={[styles.inputWrap, inputBorder('remail'), { backgroundColor: colors.glassHigh, marginTop: 12 }]}>
                     <Ionicons name="mail-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: colors.onSurface, fontFamily: FONTS.regular }]}
@@ -642,7 +665,7 @@ export const AuthScreen: React.FC = () => {
                       editable={!isBusy}
                     />
                   </View>
-                  <View style={[styles.inputWrap, inputBorder('rpass'), { backgroundColor: colors.surfaceLow, marginTop: 12 }]}>
+                  <View style={[styles.inputWrap, inputBorder('rpass'), { backgroundColor: colors.glassHigh, marginTop: 12 }]}>
                     <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: colors.onSurface, fontFamily: FONTS.regular }]}
@@ -685,10 +708,36 @@ export const AuthScreen: React.FC = () => {
           )}
         </View>
 
+        {/* Guest browsing */}
+        <TouchableOpacity
+          style={[styles.guestBtn, { borderColor: colors.glassBorder, backgroundColor: colors.glass }]}
+          onPress={continueAsGuest}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="compass-outline" size={16} color={colors.onSurface} />
+          <Text style={[styles.guestBtnText, { color: colors.onSurface }]}>
+            Continue as guest
+          </Text>
+        </TouchableOpacity>
+        <Text style={[styles.guestHint, { color: colors.textMuted }]}>
+          Browse centers and plans freely. You'll be asked to sign in when you book a session.
+        </Text>
+
+        {/* Legal */}
+        <View style={styles.legalRow}>
+          <TouchableOpacity onPress={() => navigation?.navigate?.('Legal', { type: 'terms' })}>
+            <Text style={[styles.legalLink, { color: colors.textMuted }]}>Terms of Service</Text>
+          </TouchableOpacity>
+          <Text style={[styles.legalDot, { color: colors.textMuted }]}>·</Text>
+          <TouchableOpacity onPress={() => navigation?.navigate?.('Legal', { type: 'privacy' })}>
+            <Text style={[styles.legalLink, { color: colors.textMuted }]}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Footer */}
         <View style={styles.dividerRow}>
           <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-          <Text style={[styles.dividerText, { color: colors.textMuted }]}>ULTIM © 2025</Text>
+          <Text style={[styles.dividerText, { color: colors.textMuted }]}>ULTIM © 2026</Text>
           <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
         </View>
       </ScrollView>
@@ -697,6 +746,61 @@ export const AuthScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  backChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 13,
+    height: 34,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  backChipText: {
+    fontSize: 11,
+    fontFamily: FONTS.bold,
+    letterSpacing: 0.6,
+  },
+  guestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 46,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    marginTop: SPACING.sm,
+  },
+  guestBtnText: {
+    fontSize: 12,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  guestHint: {
+    fontSize: 11,
+    fontFamily: FONTS.regular,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 16,
+    paddingHorizontal: 12,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 18,
+  },
+  legalLink: {
+    fontSize: 11.5,
+    fontFamily: FONTS.medium,
+    textDecorationLine: 'underline',
+  },
+  legalDot: {
+    fontSize: 12,
+  },
   root: { flex: 1 },
   scroll: { paddingHorizontal: SPACING.containerPadding, flexGrow: 1 },
   hiddenInput: {

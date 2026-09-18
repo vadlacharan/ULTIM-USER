@@ -103,6 +103,10 @@ class ApiService {
     return this.request<{ user: any }>('/users/me');
   }
 
+  public async deleteAccount(userId: string | number): Promise<any> {
+    return this.request(`/users/${userId}`, { method: 'DELETE' });
+  }
+
   public async updateProfile(userId: string | number, data: Partial<UserProfile>): Promise<any> {
     return this.request(`/users/${userId}`, {
       method: 'PATCH',
@@ -137,6 +141,9 @@ class ApiService {
   public async getTenants(params?: {
     city?: string;
     category?: string;
+    search?: string;
+    activity?: string;
+    sort?: string;
     nearLngLat?: string; // format: "lng,lat"
     limit?: number;
     page?: number;
@@ -151,8 +158,20 @@ class ApiService {
       if (cat === 'sport') cat = 'sports';
       queryParams.append('where[activities.category][equals]', cat);
     }
+    if (params?.activity) {
+      queryParams.append('where[activities.activity][equals]', params.activity.toLowerCase().trim());
+    }
+    if (params?.search && params.search.trim()) {
+      const q = params.search.trim();
+      // name OR activity match — top-level conditions are ANDed with the rest
+      queryParams.append('where[or][0][Facility][like]', q);
+      queryParams.append('where[or][1][activities.activity][like]', q);
+    }
     if (params?.nearLngLat) {
       queryParams.append('where[location][near]', params.nearLngLat);
+    }
+    if (params?.sort) {
+      queryParams.append('sort', params.sort);
     }
 
     const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';

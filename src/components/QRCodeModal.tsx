@@ -1,20 +1,24 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   Text,
   StyleSheet,
   Modal,
+  Pressable,
+  TouchableOpacity,
   ActivityIndicator,
   Platform,
   Linking,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Rect, Path } from 'react-native-svg';
-import { FONTS, RADIUS, SPACING } from '../theme/theme';
+import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { Booking } from '../types';
 import { api } from '../services/api';
 import { useApp } from '../context/AppContext';
-import { GradientButton, IconButton, OutlineButton } from './buttons';
+import { IconButton } from './buttons';
 
 /**
  * Single-Path SVG QR Code component 100% compliant with React 19 & Hermes compiler.
@@ -78,7 +82,7 @@ const PureSVGQRCode: React.FC<{ value: string; size: number }> = ({ value, size 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <Rect width={size} height={size} fill="#FFFFFF" rx={8} />
-      <Path d={pathData} fill="#131312" />
+      <Path d={pathData} fill="#0A0A0B" />
     </Svg>
   );
 };
@@ -90,7 +94,8 @@ interface QRCodeModalProps {
 }
 
 export const QRCodeModal: React.FC<QRCodeModalProps> = ({ visible, booking, onClose }) => {
-  const { colors, isDark } = useApp();
+  const { colors } = useApp();
+  const insets = useSafeAreaInsets();
   if (!booking) return null;
 
   const qrMode = booking.qrMode || 'CHECK_IN';
@@ -169,115 +174,123 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ visible, booking, onCl
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-          {/* Header */}
-          <View style={styles.modalHeader}>
-            <View style={styles.titleContainer}>
-              <Text style={[styles.modalTitle, { color: colors.onSurface }]}>
-                {qrMode === 'CHECK_OUT' ? 'Check-Out QR Pass' : 'Check-In QR Pass'}
-              </Text>
-              <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
-                {qrMode === 'CHECK_OUT'
-                  ? 'Present at reception desk to complete your session exit'
-                  : 'Present at reception desk for instant entry'}
-              </Text>
-            </View>
-            <IconButton
-              icon="close"
-              onPress={onClose}
-              size={32}
-              iconSize={24}
-              iconColor={colors.onSurface}
-            />
-          </View>
-
-          {/* QR Container */}
-          <View
-            style={[
-              styles.qrCard,
-              { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
-            ]}
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable
+          style={[
+            styles.modalContent,
+            {
+              backgroundColor: 'rgba(12,12,16,0.96)',
+              paddingBottom: Math.max(insets.bottom, SPACING.md),
+            },
+          ]}
+          onPress={() => {}}
+        >
+          <ScrollView
+            style={styles.modalScroll}
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
           >
-            <View style={styles.qrHeaderTag}>
-              <Text style={[styles.qrTagText, { color: colors.primary }]}>
-                {qrMode === 'CHECK_OUT' ? 'SESSION CHECK-OUT' : 'CONFIRMED SESSION'}
-              </Text>
-            </View>
-
-            {/* SINGLE-PATH REACT 19 COMPLIANT SVG QR CODE */}
-            <View style={styles.qrSvgWrapper}>
-              {isRefreshingToken ? (
-                <View style={styles.qrLoadingBox}>
-                  <ActivityIndicator size="large" color={colors.primary} />
-                </View>
-              ) : (
-                <PureSVGQRCode value={token} size={190} />
-              )}
-            </View>
-
-            {/* 16-Character Hex Token Code */}
-            <Text style={[styles.codeText, { color: colors.primary }]}>{token}</Text>
-          </View>
-
-          {/* Session Details */}
-          <View
-            style={[
-              styles.detailsCard,
-              { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
-            ]}
-          >
-            <Text style={[styles.facilityName, { color: colors.onSurface }]}>
-              {booking.facilityName}
-            </Text>
-            <Text style={[styles.facilityAddress, { color: colors.textMuted }]}>
-              {booking.facilityAddress}
-            </Text>
-
-            <View style={[styles.infoDivider, { backgroundColor: colors.surfaceHigh }]} />
-
-            <View style={styles.row}>
-              <View style={styles.col}>
-                <Text style={[styles.label, { color: colors.textMuted }]}>SPORT / ZONE</Text>
-                <Text style={[styles.value, { color: colors.onSurface }]}>{booking.sportType}</Text>
-              </View>
-              <View style={styles.col}>
-                <Text style={[styles.label, { color: colors.textMuted }]}>COURT / FLOOR</Text>
-                <Text style={[styles.value, { color: colors.onSurface }]}>{booking.courtName}</Text>
-              </View>
-            </View>
-
-            <View style={[styles.row, { marginTop: 12 }]}>
-              <View style={styles.col}>
-                <Text style={[styles.label, { color: colors.textMuted }]}>DATE</Text>
-                <Text style={[styles.value, { color: colors.onSurface }]}>{booking.dateStr}</Text>
-              </View>
-              <View style={styles.col}>
-                <Text style={[styles.label, { color: colors.textMuted }]}>TIME SLOT</Text>
-                <Text style={[styles.value, { color: colors.onSurface }]}>
-                  {booking.timeSlotLabel}
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.titleContainer}>
+                <Text style={[styles.modalTitle, { color: colors.onSurface }]}> 
+                  {qrMode === 'CHECK_OUT' ? 'Check-Out QR Pass' : 'Check-In QR Pass'}
+                </Text>
+                <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}> 
+                  {qrMode === 'CHECK_OUT'
+                    ? 'Present at reception desk to complete your session exit'
+                    : 'Present at reception desk for instant entry'}
                 </Text>
               </View>
+              <IconButton
+                icon="close"
+                onPress={onClose}
+                size={32}
+                iconSize={24}
+                iconColor={colors.onSurface}
+              />
             </View>
-          </View>
 
-          {/* Action Buttons */}
-          <View style={styles.actionsRow}>
-            <OutlineButton
-              label="GOOGLE MAPS"
-              icon="map-outline"
-              onPress={handleGetDirections}
-              color={colors.primary}
-              style={styles.actionButtonFlex}
-            />
-            <GradientButton
-              label="DONE"
-              onPress={onClose}
-              style={styles.actionButtonFlex}
-            />
-          </View>
-        </View>
-      </View>
+            {/* QR Container */}
+            <View
+              style={[
+                styles.qrCard,
+                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+              ]}
+            >
+              <View style={styles.qrHeaderTag}>
+                <Text style={[styles.qrTagText, { color: colors.primary }]}> 
+                  {qrMode === 'CHECK_OUT' ? 'SESSION CHECK-OUT' : 'CONFIRMED SESSION'}
+                </Text>
+              </View>
+
+              {/* SINGLE-PATH REACT 19 COMPLIANT SVG QR CODE */}
+              <View style={styles.qrSvgWrapper}>
+                {isRefreshingToken ? (
+                  <View style={styles.qrLoadingBox}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                  </View>
+                ) : (
+                  <PureSVGQRCode value={token} size={190} />
+                )}
+              </View>
+
+              {/* 16-Character Hex Token Code */}
+              <Text style={[styles.codeText, { color: colors.primary }]}>{token}</Text>
+            </View>
+
+            {/* Session Details */}
+            <View
+              style={[
+                styles.detailsCard,
+                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+              ]}
+            >
+              <TouchableOpacity onPress={handleGetDirections} activeOpacity={0.8}>
+                <Text style={[styles.facilityName, { color: colors.onSurface }]}>
+                  {booking.facilityName}
+                </Text>
+                <Text style={[styles.facilityAddress, { color: colors.textMuted }]}>
+                  {booking.facilityAddress}
+                </Text>
+                <View style={styles.directionsRow}>
+                  <Ionicons name="navigate-outline" size={12} color={colors.primary} />
+                  <Text style={[styles.directionsText, { color: colors.primary }]}>
+                    GET DIRECTIONS
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={[styles.infoDivider, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
+
+              <View style={styles.row}>
+                <View style={styles.col}>
+                  <Text style={[styles.label, { color: colors.textMuted }]}>SPORT / ZONE</Text>
+                  <Text style={[styles.value, { color: colors.onSurface }]}>{booking.sportType}</Text>
+                </View>
+                <View style={styles.col}>
+                  <Text style={[styles.label, { color: colors.textMuted }]}>COURT / FLOOR</Text>
+                  <Text style={[styles.value, { color: colors.onSurface }]}>{booking.courtName}</Text>
+                </View>
+              </View>
+
+              <View style={[styles.row, { marginTop: 12 }]}>
+                <View style={styles.col}>
+                  <Text style={[styles.label, { color: colors.textMuted }]}>DATE</Text>
+                  <Text style={[styles.value, { color: colors.onSurface }]}>{booking.dateStr}</Text>
+                </View>
+                <View style={styles.col}>
+                  <Text style={[styles.label, { color: colors.textMuted }]}>TIME SLOT</Text>
+                  <Text style={[styles.value, { color: colors.onSurface }]}> 
+                    {booking.timeSlotLabel}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 };
@@ -291,8 +304,15 @@ const styles = StyleSheet.create({
   modalContent: {
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
-    padding: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
     maxHeight: '90%',
+  },
+  modalScroll: {
+    flexShrink: 1,
+  },
+  modalScrollContent: {
+    paddingBottom: SPACING.xs,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -324,7 +344,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   qrHeaderTag: {
-    backgroundColor: 'rgba(255, 87, 34, 0.15)',
+    backgroundColor: 'rgba(255, 90, 31, 0.15)',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
@@ -373,6 +393,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: FONTS.extraBold,
   },
+  directionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 6,
+  },
+  directionsText: {
+    fontSize: 9.5,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.1,
+  },
   facilityAddress: {
     fontSize: 12,
     fontFamily: FONTS.regular,
@@ -399,12 +430,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONTS.bold,
     marginTop: 2,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: SPACING.xs,
-  },
-  actionButtonFlex: {
-    flex: 1,
   },
 });

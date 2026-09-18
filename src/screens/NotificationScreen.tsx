@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS, RADIUS, SPACING } from '../theme/theme';
+import { BlurHeader, useBlurBackHeaderLayout } from '../components/Blur';
 import { useApp } from '../context/AppContext';
+import { AppBackground } from '../components/Background';
 import { IconButton } from '../components/buttons';
 
 interface NotificationScreenProps {
@@ -18,47 +19,37 @@ interface NotificationScreenProps {
 
 export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) => {
   const { notifications, markNotificationAsRead, colors } = useApp();
-  const insets = useSafeAreaInsets();
+  const { top: headerTop, height: headerHeight } = useBlurBackHeaderLayout();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Safe Area Top Bar */}
-      <View
-        style={[
-          styles.topBar,
-          {
-            paddingTop: Math.max(insets.top, 12) + 6,
-            backgroundColor: colors.surface,
-            borderBottomColor: colors.surfaceHigh,
-          },
-        ]}
+      <AppBackground />
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + 24 }]}
+        showsVerticalScrollIndicator={false}
       >
-        <IconButton
-          icon="arrow-back"
-          size={40}
-          iconSize={22}
-          iconColor={colors.onSurface}
-          backgroundColor={colors.surfaceLow}
-          onPress={() => navigation.goBack()}
-        />
-        <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>Notification Center</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {notifications.length === 0 && (
+          <View style={[styles.emptyCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+            <Ionicons name="notifications-off-outline" size={36} color={colors.textMuted} />
+            <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>You're all caught up</Text>
+            <Text style={[styles.emptySub, { color: colors.textMuted }]}>
+              Booking updates and credit activity will appear here.
+            </Text>
+          </View>
+        )}
         {notifications.map((n) => (
           <TouchableOpacity
             key={n.id}
             style={[
               styles.notifCard,
-              { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
               !n.isRead && [styles.unreadCard, { borderLeftColor: colors.primary }],
             ]}
             onPress={() => markNotificationAsRead(n.id)}
             activeOpacity={0.8}
           >
             <View style={styles.row}>
-              <View style={[styles.iconBox, { backgroundColor: colors.surfaceLow }]}>
+              <View style={[styles.iconBox, { backgroundColor: colors.glassHigh }]}>
                 <Ionicons
                   name={
                     n.type === 'BOOKING'
@@ -82,11 +73,53 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Floating blur header — list scrolls behind it */}
+      <BlurHeader
+        height={headerHeight}
+        contentStyle={{
+          paddingTop: headerTop,
+          paddingHorizontal: SPACING.containerPadding,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <IconButton
+          icon="arrow-back"
+          size={40}
+          iconSize={22}
+          iconColor={colors.onSurface}
+          backgroundColor={colors.glassHigh}
+          onPress={() => navigation.goBack()}
+        />
+        <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>Notification Center</Text>
+        <View style={{ width: 40 }} />
+      </BlurHeader>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  emptyCard: {
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    alignItems: 'center',
+    marginTop: SPACING.lg,
+    borderWidth: 1,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontFamily: FONTS.bold,
+    marginTop: 10,
+  },
+  emptySub: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
+  },
   container: {
     flex: 1,
   },

@@ -35,6 +35,7 @@ export interface Facility {
   sportTags: string[];
   amenities: Amenity[];
   operatingHours: string;
+  /** Short marketing description provided by the center (Payload: tenants.description). */
   description: string;
   address: string;
   activities?: TenantActivity[];
@@ -56,7 +57,12 @@ export interface MembershipPlan {
   creditsGranted: number;
   validActivities: string[];
   durationDays: number;
+  /** Selling price (discountedPrice when an offer exists, otherwise the actual price). */
   price: string;
+  /** Actual/list price before the offer — shown struck through when a discount exists. */
+  originalPrice?: string;
+  /** True when the plan currently has a discounted price. */
+  hasDiscount?: boolean;
   description: string;
   features: string[];
   timeSlots?: MembershipPlanTimeSlot[];

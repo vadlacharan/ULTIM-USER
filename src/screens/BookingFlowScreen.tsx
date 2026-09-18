@@ -8,7 +8,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { StatusBadge } from '../components/StatusBadge';
@@ -16,8 +16,10 @@ import { SwipeToBook } from '../components/SwipeToBook';
 import { CreditIcon } from '../components/CreditIcon';
 import { IconButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
+import { AppBackground } from '../components/Background';
 import { api } from '../services/api';
 import { adaptTenantToFacility } from '../services/adapters';
+import { getActivityIcon } from '../utils/activityIcons';
 import { Facility } from '../types';
 
 interface BookingFlowScreenProps {
@@ -308,7 +310,8 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
           [
             {
               text: 'VIEW BOOKING & QR',
-              onPress: () => navigation.navigate('BookingsTab'),
+              onPress: () =>
+                navigation.navigate('MainTabs', { screen: 'BookingsTab' }),
             },
           ]
         );
@@ -331,6 +334,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
   if (loadingFacility && !facility) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 20), justifyContent: 'center' }]}>
+        <AppBackground />
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -339,6 +343,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
   if (!facility) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 20) }]}>
+        <AppBackground />
         <Text style={{ color: colors.onSurface, textAlign: 'center', marginTop: 40 }}>Facility not found.</Text>
       </View>
     );
@@ -346,14 +351,15 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AppBackground />
       {/* Top Header with Safe Area Inset */}
       <View
         style={[
           styles.topBar,
           {
             paddingTop: Math.max(insets.top, 12) + 6,
-            backgroundColor: colors.surface,
-            borderBottomColor: colors.surfaceHigh,
+            backgroundColor: 'rgba(10,10,14,0.88)',
+            borderBottomColor: 'rgba(255,255,255,0.08)',
           },
         ]}
       >
@@ -362,7 +368,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
           size={38}
           iconSize={20}
           iconColor={colors.onSurface}
-          backgroundColor={colors.surfaceLow}
+          backgroundColor={colors.glassHigh}
           onPress={() => navigation.goBack()}
         />
         <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>Reserve Session Slot</Text>
@@ -374,7 +380,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
         <View
           style={[
             styles.facilityHeaderCard,
-            { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
           ]}
         >
           <View style={styles.facilityMainRow}>
@@ -383,14 +389,14 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
               <Text style={[styles.facilityAddress, { color: colors.textMuted }]}>{facility.address}</Text>
             </View>
             {facility.category && (
-              <View style={[styles.catBadge, { backgroundColor: colors.surfaceLow, borderColor: colors.surfaceHigh }]}>
+              <View style={[styles.catBadge, { backgroundColor: colors.glassHigh, borderColor: colors.glassBorder }]}>
                 <Text style={[styles.catBadgeText, { color: colors.primary }]}>{facility.category.toUpperCase()}</Text>
               </View>
             )}
           </View>
 
           {activeMembership && (
-            <View style={[styles.activePlanRow, { borderTopColor: colors.surfaceHigh }]}>
+            <View style={[styles.activePlanRow, { borderTopColor: 'rgba(255,255,255,0.10)' }]}>
               <View style={styles.planPillLeft}>
                 <Ionicons name="shield-checkmark" size={14} color={colors.secondary} />
                 <Text style={[styles.activePlanTitle, { color: colors.onSurface }]}>
@@ -416,7 +422,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
                 key={d.label}
                 style={[
                   styles.dateChip,
-                  { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
                   isSelected && [styles.selectedDateChip, { backgroundColor: colors.primary, borderColor: colors.primary }],
                 ]}
                 onPress={() => setSelectedDate(d.label)}
@@ -458,14 +464,19 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
                 key={act.activityKey}
                 style={[
                   styles.zoneChip,
-                  { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
-                  isSelected && [styles.selectedZoneChip, { borderColor: colors.primary, backgroundColor: colors.surfaceLow }],
+                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                  isSelected && [styles.selectedZoneChip, { borderColor: colors.primary, backgroundColor: colors.glassHigh }],
                   !act.isIncludedInPlan && styles.unsupportedZoneChip,
                 ]}
                 onPress={() => setSelectedActivity(act)}
                 activeOpacity={0.8}
               >
                 <View style={styles.zoneTopRow}>
+                  <MaterialCommunityIcons
+                    name={getActivityIcon(act.activityKey || act.sportLabel)}
+                    size={14}
+                    color={isSelected ? colors.primary : colors.secondary}
+                  />
                   <Text
                     style={[
                       styles.zoneName,
@@ -504,8 +515,8 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
                 key={court.id}
                 style={[
                   styles.courtChip,
-                  { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
-                  isSelected && [styles.selectedCourtChip, { borderColor: colors.primary, backgroundColor: colors.surfaceLow }],
+                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                  isSelected && [styles.selectedCourtChip, { borderColor: colors.primary, backgroundColor: colors.glassHigh }],
                 ]}
                 onPress={() => setSelectedCourt(court)}
                 activeOpacity={0.8}
@@ -538,7 +549,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
           <TouchableOpacity
             style={[
               styles.durationBtn,
-              { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
               duration === 60 && [styles.activeDurationBtn, { backgroundColor: colors.primary, borderColor: colors.primary }],
             ]}
             onPress={() => setDuration(60)}
@@ -555,7 +566,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
           <TouchableOpacity
             style={[
               styles.durationBtn,
-              { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
               duration === 120 && [styles.activeDurationBtn, { backgroundColor: colors.primary, borderColor: colors.primary }],
             ]}
             onPress={() => setDuration(120)}
@@ -586,9 +597,9 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
                 key={slot.id}
                 style={[
                   styles.slotChip,
-                  { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
-                  isSelected && [styles.selectedSlotChip, { borderColor: colors.primary, backgroundColor: colors.surfaceLow }],
-                  !slot.isAvailable && [styles.disabledSlotChip, { backgroundColor: colors.surfaceLow }],
+                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                  isSelected && [styles.selectedSlotChip, { borderColor: colors.primary, backgroundColor: colors.glassHigh }],
+                  !slot.isAvailable && [styles.disabledSlotChip, { backgroundColor: colors.glassHigh }],
                 ]}
                 onPress={() => slot.isAvailable && setSelectedSlot(slot)}
                 disabled={!slot.isAvailable}
@@ -621,7 +632,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
         <View
           style={[
             styles.summaryCard,
-            { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+            { backgroundColor: colors.emberPanel, borderColor: colors.emberBorder },
           ]}
         >
           <View style={styles.summaryHeader}>
@@ -629,7 +640,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
             <StatusBadge label={selectedActivity?.sportLabel || 'SESSION'} type="active" />
           </View>
 
-          <View style={[styles.summaryDivider, { backgroundColor: colors.surfaceHigh }]} />
+          <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
 
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Date & Start Time</Text>
@@ -645,7 +656,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
             </Text>
           </View>
 
-          <View style={[styles.summaryDivider, { backgroundColor: colors.surfaceHigh }]} />
+          <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
 
           {/* Credits Calculation */}
           <View style={styles.summaryRow}>
@@ -697,8 +708,8 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
           styles.fixedFooter,
           {
             paddingBottom: Math.max(insets.bottom, 12),
-            backgroundColor: colors.surface,
-            borderTopColor: colors.surfaceHigh,
+            backgroundColor: 'rgba(10,10,14,0.88)',
+            borderTopColor: 'rgba(255,255,255,0.10)',
           },
         ]}
       >
@@ -890,7 +901,7 @@ const styles = StyleSheet.create({
   zoneTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 6,
   },
   zoneName: {
     fontSize: 13,

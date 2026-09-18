@@ -9,14 +9,16 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
+import { getActivityIcon } from '../utils/activityIcons';
 import { NoticeBanner } from '../components/NoticeBanner';
 import { StatusBadge } from '../components/StatusBadge';
 import { CreditIcon } from '../components/CreditIcon';
 import { GradientButton, IconButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
+import { AppBackground } from '../components/Background';
 import { api } from '../services/api';
 import { adaptMembershipPlan } from '../services/adapters';
 import { MembershipPlan } from '../types';
@@ -104,14 +106,15 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AppBackground />
       {/* Top Bar with Safe Area Inset */}
       <View
         style={[
           styles.topBar,
           {
             paddingTop: Math.max(insets.top, 12) + 6,
-            backgroundColor: colors.surface,
-            borderBottomColor: colors.surfaceHigh,
+            backgroundColor: 'rgba(10,10,14,0.88)',
+            borderBottomColor: 'rgba(255,255,255,0.08)',
           },
         ]}
       >
@@ -120,7 +123,7 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
           size={40}
           iconSize={22}
           iconColor={colors.onSurface}
-          backgroundColor={colors.surfaceLow}
+          backgroundColor={colors.glassHigh}
           onPress={() => navigation.goBack()}
         />
         <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>Plan Overview</Text>
@@ -136,14 +139,19 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
             <View
               style={[
                 styles.heroCard,
-                { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+                { backgroundColor: colors.emberPanel, borderColor: colors.emberBorder },
               ]}
             >
               <StatusBadge label="OFFLINE REGISTRATION ONLY" type="notice" />
               <Text style={[styles.planTitle, { color: colors.onSurface }]}>{plan.title}</Text>
               <Text style={[styles.facilityName, { color: colors.primary }]}>{plan.facilityName}</Text>
+              {!!plan.description && (
+                <Text style={[styles.planDescription, { color: colors.textMuted }]}>
+                  {plan.description}
+                </Text>
+              )}
 
-              <View style={[styles.creditHighlightRow, { borderTopColor: colors.surfaceHigh }]}>
+              <View style={[styles.creditHighlightRow, { borderTopColor: 'rgba(255,255,255,0.10)' }]}>
                 <View style={styles.creditBigBox}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={styles.creditVal}>{plan.creditsGranted}</Text>
@@ -153,9 +161,21 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
                 </View>
 
                 <View style={styles.priceCol}>
-                  <Text style={[styles.priceText, { color: colors.onSurface }]}>
-                    {isNaN(Number(plan.price)) ? plan.price : `₹${plan.price}`}
-                  </Text>
+                  <View style={styles.priceRow}>
+                    <Text style={[styles.priceText, { color: colors.onSurface }]}>
+                      {isNaN(Number(plan.price)) ? plan.price : `₹${plan.price}`}
+                    </Text>
+                    {plan.hasDiscount && plan.originalPrice && (
+                      <Text style={styles.priceStrike}>{`₹${plan.originalPrice}`}</Text>
+                    )}
+                  </View>
+                  {plan.hasDiscount && plan.originalPrice && (
+                    <View style={styles.saveChip}>
+                      <Text style={styles.saveChipText}>
+                        SAVE ₹{Math.max(0, Number(plan.originalPrice) - Number(plan.price))}
+                      </Text>
+                    </View>
+                  )}
                   <Text style={[styles.validityText, { color: colors.textMuted }]}>
                     {plan.durationDays} Days Validity
                   </Text>
@@ -170,7 +190,7 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
             <View
               style={[
                 styles.sectionCard,
-                { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
               ]}
             >
               <Text style={[styles.sectionHeader, { color: colors.onSurface }]}>
@@ -188,7 +208,7 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
             <View
               style={[
                 styles.sectionCard,
-                { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
               ]}
             >
               <Text style={[styles.sectionHeader, { color: colors.onSurface }]}>
@@ -200,10 +220,14 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
                     key={idx}
                     style={[
                       styles.activityChip,
-                      { backgroundColor: colors.surfaceLow, borderColor: colors.surfaceHigh },
+                      { backgroundColor: colors.glassHigh, borderColor: colors.glassBorder },
                     ]}
                   >
-                    <Ionicons name="fitness-outline" size={14} color={colors.secondary} />
+                    <MaterialCommunityIcons
+                      name={getActivityIcon(act)}
+                      size={14}
+                      color={colors.secondary}
+                    />
                     <Text style={[styles.activityText, { color: colors.onSurface }]}>{act.toLocaleUpperCase()}</Text>
                   </View>
                 ))}
@@ -236,9 +260,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.containerPadding,
     paddingBottom: 12,
-    backgroundColor: COLORS.surface,
+    backgroundColor: 'rgba(10,10,14,0.88)',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceHigh,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   topBarTitle: {
     fontSize: 16,
@@ -250,11 +274,11 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl,
   },
   heroCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   planTitle: {
     fontSize: 24,
@@ -277,15 +301,15 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.surfaceHigh,
+    borderTopColor: 'rgba(255,255,255,0.10)',
   },
   creditBigBox: {
-    backgroundColor: 'rgba(255, 87, 34, 0.15)',
+    backgroundColor: 'rgba(255, 90, 31, 0.15)',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 87, 34, 0.4)',
+    borderColor: 'rgba(255, 90, 31, 0.4)',
     alignItems: 'center',
   },
   creditVal: {
@@ -298,6 +322,39 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     color: COLORS.primary,
     letterSpacing: 0.5,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 7,
+  },
+  priceStrike: {
+    fontSize: 12.5,
+    fontFamily: FONTS.medium,
+    color: 'rgba(255,255,255,0.38)',
+    textDecorationLine: 'line-through',
+  },
+  saveChip: {
+    alignSelf: 'flex-start',
+    marginTop: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.goldPanel,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.goldBorder,
+  },
+  saveChipText: {
+    fontSize: 8,
+    fontFamily: FONTS.bold,
+    letterSpacing: 0.8,
+    color: COLORS.secondary,
+  },
+  planDescription: {
+    fontSize: 12.5,
+    fontFamily: FONTS.regular,
+    lineHeight: 18,
+    marginTop: 6,
   },
   priceCol: {
     alignItems: 'flex-end',
@@ -315,12 +372,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sectionCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.md,
     marginTop: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   sectionHeader: {
     fontSize: 12,
@@ -349,14 +406,14 @@ const styles = StyleSheet.create({
   activityChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceLow,
+    backgroundColor: COLORS.glassHigh,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: RADIUS.md,
     marginRight: 8,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   activityText: {
     fontSize: 12,

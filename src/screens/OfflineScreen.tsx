@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS, RADIUS, SPACING } from '../theme/theme';
 import { useApp } from '../context/AppContext';
+import { AppBackground } from '../components/Background';
 import { CreditIcon } from '../components/CreditIcon';
 import { GradientButton } from '../components/buttons';
 
@@ -37,14 +38,15 @@ export const OfflineScreen: React.FC<OfflineScreenProps> = ({ onRetry }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AppBackground />
       {/* Top Header */}
       <View
         style={[
           styles.topBar,
           {
             paddingTop: Math.max(insets.top, 12) + 6,
-            backgroundColor: colors.surface,
-            borderBottomColor: colors.surfaceHigh,
+            backgroundColor: 'rgba(10,10,14,0.88)',
+            borderBottomColor: 'rgba(255,255,255,0.10)',
           },
         ]}
       >
@@ -62,11 +64,11 @@ export const OfflineScreen: React.FC<OfflineScreenProps> = ({ onRetry }) => {
         <View
           style={[
             styles.card,
-            { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
           ]}
         >
           {/* Icon Ring */}
-          <View style={[styles.iconWrapper, { backgroundColor: colors.surfaceLow }]}>
+          <View style={[styles.iconWrapper, { backgroundColor: colors.glassHigh }]}>
             <Ionicons name="cloud-offline-sharp" size={46} color={colors.primary} />
           </View>
 
@@ -81,7 +83,7 @@ export const OfflineScreen: React.FC<OfflineScreenProps> = ({ onRetry }) => {
             <View
               style={[
                 styles.cachedUserBox,
-                { backgroundColor: colors.surfaceLow, borderColor: colors.surfaceHigh },
+                { backgroundColor: colors.glassHigh, borderColor: colors.glassBorder },
               ]}
             >
               <View style={styles.cachedUserRow}>

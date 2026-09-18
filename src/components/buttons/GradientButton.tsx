@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, StyleProp, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FONTS, RADIUS } from '../../theme/theme';
+import { COLORS, FONTS, GRADIENTS, RADIUS, SHADOWS } from '../../theme/theme';
 import { AnimatedPressable } from './AnimatedPressable';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -10,10 +10,17 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 export type GradientButtonVariant = 'primary' | 'danger' | 'dark' | 'success';
 
 const VARIANT_GRADIENTS: Record<GradientButtonVariant, readonly [string, string]> = {
-  primary: ['#FF8A50', '#FF5722'],
-  danger: ['#FB7185', '#E11D48'],
-  dark: ['#3F3F46', '#18181B'],
-  success: ['#34D399', '#059669'],
+  primary: [...GRADIENTS.primaryButton],
+  danger: [...GRADIENTS.dangerButton],
+  dark: [...GRADIENTS.darkButton],
+  success: [...GRADIENTS.successButton],
+};
+
+const VARIANT_TEXT: Record<GradientButtonVariant, string> = {
+  primary: COLORS.onPrimary, // near-black on ember — the functional accent
+  danger: '#FFFFFF',
+  dark: '#FFFFFF',
+  success: '#04150D',
 };
 
 interface GradientButtonProps {
@@ -50,6 +57,7 @@ export const GradientButton: React.FC<GradientButtonProps> = ({
   textStyle,
 }) => {
   const gradientColors = VARIANT_GRADIENTS[variant];
+  const contentColor = VARIANT_TEXT[variant];
 
   return (
     <AnimatedPressable
@@ -61,28 +69,33 @@ export const GradientButton: React.FC<GradientButtonProps> = ({
         colors={gradientColors}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={[styles.base, compact ? styles.compact : styles.regular, fullWidth && styles.fullWidth]}
+        style={[
+          styles.base,
+          compact ? styles.compact : styles.regular,
+          fullWidth && styles.fullWidth,
+          variant === 'primary' && styles.emberGlow,
+        ]}
       >
         {loading ? (
-          <ActivityIndicator size="small" color="#FFF" />
+          <ActivityIndicator size="small" color={contentColor} />
         ) : (
           <>
             {icon && iconPosition === 'left' && (
               <Ionicons
                 name={icon}
                 size={compact ? 14 : 16}
-                color="#FFF"
+                color={contentColor}
                 style={styles.iconLeft}
               />
             )}
-            <Text style={[styles.text, compact ? styles.textCompact : styles.textRegular, textStyle]}>
+            <Text style={[styles.text, compact ? styles.textCompact : styles.textRegular, { color: contentColor }, textStyle]}>
               {label}
             </Text>
             {icon && iconPosition === 'right' && (
               <Ionicons
                 name={icon}
                 size={compact ? 14 : 16}
-                color="#FFF"
+                color={contentColor}
                 style={styles.iconRight}
               />
             )}
@@ -105,24 +118,25 @@ const styles = StyleSheet.create({
   },
   regular: {
     paddingVertical: 13,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   compact: {
     paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 15,
   },
+  emberGlow: SHADOWS.ember,
   text: {
-    color: '#FFF',
-    fontFamily: FONTS.extraBold,
+    fontFamily: FONTS.bold,
     textAlign: 'center',
+    textTransform: 'uppercase',
   },
   textRegular: {
     fontSize: 13,
-    letterSpacing: 0.4,
+    letterSpacing: 1.6,
   },
   textCompact: {
-    fontSize: 11,
-    letterSpacing: 0.4,
+    fontSize: 10.5,
+    letterSpacing: 1.2,
   },
   iconLeft: {
     marginRight: 7,

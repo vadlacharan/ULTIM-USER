@@ -108,7 +108,7 @@ export const LocationModal: React.FC<LocationModalProps> = ({ visible, onClose }
               size={36}
               iconSize={22}
               iconColor={COLORS.onSurface}
-              backgroundColor={COLORS.surfaceLow}
+              backgroundColor={COLORS.glassHigh}
             />
           </View>
 
@@ -176,13 +176,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
     padding: SPACING.containerPadding,
     maxHeight: '85%',
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -207,12 +207,12 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceLow,
+    backgroundColor: COLORS.glassHigh,
     borderRadius: RADIUS.lg,
     paddingHorizontal: 12,
     height: 48,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
     marginBottom: SPACING.sm,
   },
   inputIcon: {
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   selectedDistrictItem: {
-    backgroundColor: 'rgba(255, 87, 34, 0.12)',
+    backgroundColor: 'rgba(255, 90, 31, 0.12)',
   },
   districtText: {
     flex: 1,

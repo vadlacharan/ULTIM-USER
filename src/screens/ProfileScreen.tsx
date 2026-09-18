@@ -6,13 +6,19 @@ import {
   ScrollView,
   Alert,
   RefreshControl,
+  TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import { FONTS, RADIUS, SPACING } from '../theme/theme';
+import { SUPPORT_EMAIL } from './LegalScreen';
+import { BlurTitleHeader, useBlurHeaderLayout } from '../components/Blur';
+import { useTabBarClearance } from '../navigation/BlurTabBar';
 import { CreditIcon } from '../components/CreditIcon';
 import { GradientButton, OutlineButton, IconButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
+import { AppBackground } from '../components/Background';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -27,13 +33,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     userMemberships,
     totalActiveCredits,
     refreshData,
-    themeMode,
-    isDark,
-    toggleTheme,
+    deleteAccount,
     colors,
   } = useApp();
-  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const { height: headerHeight } = useBlurHeaderLayout();
+  const tabBarClearance = useTabBarClearance();
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -52,29 +57,40 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     ]);
   };
 
+  const handleDeleteAccountPress = () => {
+    Alert.alert(
+      'Delete Account',
+      'This permanently deletes your profile, credits, memberships and booking history. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'DELETE MY ACCOUNT',
+          style: 'destructive',
+          onPress: async () => {
+            const res = await deleteAccount();
+            if (!res.success) {
+              Alert.alert('Deletion failed', res.error || 'Please try again later.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const openLegal = (type: 'privacy' | 'terms') => navigation.navigate('Legal', { type });
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Safe Area Top Bar */}
-      <View
-        style={[
-          styles.topBar,
-          {
-            paddingTop: Math.max(insets.top, 12) + 6,
-            backgroundColor: colors.surface,
-            borderBottomColor: colors.surfaceHigh,
-          },
-        ]}
-      >
-        <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>
-          Athlete <Text style={{ color: colors.primary }}>Profile</Text>
-        </Text>
-      </View>
-
+      <AppBackground />
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: headerHeight + 24, paddingBottom: tabBarClearance + 16 },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
+            progressViewOffset={headerHeight}
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
@@ -87,7 +103,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           <View
             style={[
               styles.unauthCard,
-              { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
             ]}
           >
             <Ionicons name="person-circle-outline" size={54} color={colors.primary} />
@@ -107,7 +123,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             <View
               style={[
                 styles.profileCard,
-                { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
               ]}
             >
               <View style={[styles.avatarBox, { backgroundColor: colors.primary }]}>
@@ -141,7 +157,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               <View
                 style={[
                   styles.statBox,
-                  { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+                  { backgroundColor: colors.emberPanel, borderColor: colors.emberBorder },
                 ]}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -154,7 +170,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               <View
                 style={[
                   styles.statBox,
-                  { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
                 ]}
               >
                 <Text style={[styles.statVal, { color: colors.secondary }]}>
@@ -164,103 +180,88 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Theme Preference Switcher Card */}
+            {/* Transactions — single link row, full ledger lives on its own screen */}
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-                APPEARANCE & THEME
+                TRANSACTIONS
               </Text>
             </View>
 
-            <View
-              style={[
-                styles.themeCard,
-                { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
-              ]}
-            >
-              <View style={styles.themeInfoRow}>
-                <View style={[styles.themeIconBox, { backgroundColor: isDark ? '#2A2A29' : '#FFF3E0' }]}>
-                  <Ionicons
-                    name={isDark ? 'moon-sharp' : 'sunny-sharp'}
-                    size={22}
-                    color={isDark ? colors.secondary : colors.primary}
-                  />
-                </View>
-                <View style={styles.themeTextCol}>
-                  <Text style={[styles.themeTitle, { color: colors.onSurface }]}>
-                    {isDark ? 'Dark Theme' : 'Light Theme'}
-                  </Text>
-                  <Text style={[styles.themeSub, { color: colors.textMuted }]}>
-                    {isDark ? 'Sleek dark interface for night & OLED' : 'Bright high-contrast theme for daytime'}
-                  </Text>
-                </View>
-              </View>
-
-              <GradientButton
-                label={`SWITCH TO ${isDark ? 'LIGHT' : 'DARK'}`}
-                icon={isDark ? 'sunny-outline' : 'moon-outline'}
-                onPress={toggleTheme}
-              />
-            </View>
-
-            {/* Transaction Ledger */}
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-                TRANSACTIONS LEDGER
-              </Text>
-            </View>
-
-            {transactions.length === 0 ? (
-              <View
-                style={[
-                  styles.emptyCard,
-                  { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
-                ]}
+            <View style={[styles.settingsCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => navigation.navigate('Transactions')}
+                activeOpacity={0.7}
               >
-                <Ionicons name="receipt-outline" size={36} color={colors.textMuted} />
-                <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>
-                  No Transactions Recorded
-                </Text>
-                <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-                  Your credit additions from center desk activations and session deductions will appear here.
-                </Text>
-              </View>
-            ) : (
-              transactions.map((tx) => (
-                <View
-                  key={tx.id}
-                  style={[
-                    styles.txCard,
-                    { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
-                  ]}
-                >
-                  <View style={[styles.txIconBox, { backgroundColor: colors.surfaceLow }]}>
-                    <Ionicons
-                      name={tx.credits > 0 ? 'add-circle-sharp' : 'remove-circle-sharp'}
-                      size={20}
-                      color={tx.credits > 0 ? colors.secondary : colors.primary}
-                    />
-                  </View>
-
-                  <View style={styles.txDetails}>
-                    <Text style={[styles.txTitle, { color: colors.onSurface }]}>{tx.description}</Text>
-                    <Text style={[styles.txFacility, { color: colors.textMuted }]}>{tx.facilityName}</Text>
-                    <Text style={[styles.txDate, { color: colors.textMuted }]}>{tx.date}</Text>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Text
-                      style={[
-                        styles.txAmount,
-                        { color: tx.credits > 0 ? colors.secondary : colors.primary },
-                      ]}
-                    >
-                      {`${tx.credits}`}
-                    </Text>
-
-                  </View>
+                <View style={[styles.settingsIcon, { backgroundColor: colors.goldPanel }]}>
+                  <Ionicons name="receipt-outline" size={16} color={colors.secondary} />
                 </View>
-              ))
-            )}
+                <View style={styles.settingsTextCol}>
+                  <Text style={[styles.settingsLabel, { flex: 0, color: colors.onSurface }]}>
+                    Credit Transactions
+                  </Text>
+                  <Text style={[styles.settingsSub, { color: colors.textMuted }]}>
+                    {totalActiveCredits} credits available · view full ledger
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Account & Privacy */}
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+                ACCOUNT & PRIVACY
+              </Text>
+            </View>
+
+            <View style={[styles.settingsCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+              <TouchableOpacity style={styles.settingsRow} onPress={() => openLegal('privacy')} activeOpacity={0.7}>
+                <View style={[styles.settingsIcon, { backgroundColor: colors.glassHigh }]}>
+                  <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
+                </View>
+                <Text style={[styles.settingsLabel, { color: colors.onSurface }]}>Privacy Policy</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
+              </TouchableOpacity>
+
+              <View style={[styles.settingsDivider, { backgroundColor: 'rgba(255,255,255,0.07)' }]} />
+
+              <TouchableOpacity style={styles.settingsRow} onPress={() => openLegal('terms')} activeOpacity={0.7}>
+                <View style={[styles.settingsIcon, { backgroundColor: colors.glassHigh }]}>
+                  <Ionicons name="document-text-outline" size={16} color={colors.primary} />
+                </View>
+                <Text style={[styles.settingsLabel, { color: colors.onSurface }]}>Terms of Service</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
+              </TouchableOpacity>
+
+              <View style={[styles.settingsDivider, { backgroundColor: 'rgba(255,255,255,0.07)' }]} />
+
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.settingsIcon, { backgroundColor: colors.glassHigh }]}>
+                  <Ionicons name="mail-outline" size={16} color={colors.primary} />
+                </View>
+                <Text style={[styles.settingsLabel, { color: colors.onSurface }]}>Contact Support</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
+              </TouchableOpacity>
+
+              <View style={[styles.settingsDivider, { backgroundColor: 'rgba(255,255,255,0.07)' }]} />
+
+              <TouchableOpacity style={styles.settingsRow} onPress={handleDeleteAccountPress} activeOpacity={0.7}>
+                <View style={[styles.settingsIcon, { backgroundColor: 'rgba(243,114,127,0.12)' }]}>
+                  <Ionicons name="trash-outline" size={16} color={colors.error} />
+                </View>
+                <Text style={[styles.settingsLabel, { color: colors.error }]}>Delete Account</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(243,114,127,0.5)" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.versionText, { color: 'rgba(255,255,255,0.30)' }]}>
+              ULTIM v{Constants.expoConfig?.version ?? '1.0.0'}
+            </Text>
 
             {/* Log Out Button */}
             <OutlineButton
@@ -273,11 +274,65 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </>
         )}
       </ScrollView>
+
+      {/* Floating blur header — screens scroll behind it */}
+      <BlurTitleHeader
+        title={<>Athlete <Text style={{ color: colors.primary }}>Profile</Text></>}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  seeAllText: {
+    fontSize: 10.5,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.2,
+  },
+  settingsCard: {
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  settingsIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsTextCol: {
+    flex: 1,
+  },
+  settingsLabel: {
+    flex: 1,
+    fontSize: 13.5,
+    fontFamily: FONTS.semiBold,
+  },
+  settingsSub: {
+    fontSize: 11,
+    fontFamily: FONTS.regular,
+    marginTop: 2,
+  },
+  settingsDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 58,
+  },
+  versionText: {
+    textAlign: 'center',
+    fontSize: 10.5,
+    fontFamily: FONTS.medium,
+    letterSpacing: 0.6,
+    marginTop: 18,
+    marginBottom: 4,
+  },
   container: {
     flex: 1,
   },

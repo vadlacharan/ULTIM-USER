@@ -12,12 +12,14 @@ import {
   NativeScrollEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
+import { BlurHeader, useBlurHeaderLayout } from '../components/Blur';
+import { useTabBarClearance } from '../navigation/BlurTabBar';
 import { QRCodeModal } from '../components/QRCodeModal';
 import { CreditIcon } from '../components/CreditIcon';
 import { GradientButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
+import { AppBackground } from '../components/Background';
 import { api } from '../services/api';
 import { Booking } from '../types';
 
@@ -28,7 +30,9 @@ const TABS: BookingTab[] = ['UPCOMING', 'PAST'];
 
 export const BookingsScreen: React.FC = () => {
   const { bookings, refreshData, colors } = useApp();
-  const insets = useSafeAreaInsets();
+  // 44 extra = 8px gap + ~36px sub-tab row floating inside the blur header
+  const { top: headerTop, height: headerHeight } = useBlurHeaderLayout(44);
+  const tabBarClearance = useTabBarClearance();
 
   const [activeSubTab, setActiveSubTab] = useState<BookingTab>('UPCOMING');
   const [selectedBookingForQR, setSelectedBookingForQR] = useState<Booking | null>(null);
@@ -129,7 +133,7 @@ export const BookingsScreen: React.FC = () => {
         key={booking.id}
         style={[
           styles.bookingCard,
-          { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
         ]}
       >
         <View style={styles.cardHeader}>
@@ -143,7 +147,7 @@ export const BookingsScreen: React.FC = () => {
           </View>
         </View>
 
-        <View style={[styles.slotDetailRow, { backgroundColor: colors.surfaceLow }]}>
+        <View style={[styles.slotDetailRow, { backgroundColor: colors.glassHigh }]}>
           <View style={styles.slotCol}>
             <Text style={[styles.slotDetailText, { color: colors.onSurface }]}>{booking.dateStr}</Text>
           </View>
@@ -177,7 +181,7 @@ export const BookingsScreen: React.FC = () => {
   };
 
   const renderEmptyState = (tab: BookingTab) => (
-    <View style={[styles.emptyCard, { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh }]}>
+    <View style={[styles.emptyCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
       <Ionicons name="calendar-outline" size={44} color={colors.textMuted} />
       <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>
         No {tab === 'UPCOMING' ? 'upcoming' : 'past'} bookings
@@ -195,10 +199,14 @@ export const BookingsScreen: React.FC = () => {
     return (
       <View style={[styles.pagerPage, { width: SCREEN_WIDTH }]}>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: headerHeight + 24, paddingBottom: tabBarClearance + 16 },
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
+              progressViewOffset={headerHeight}
               refreshing={refreshing}
               onRefresh={onRefresh}
               tintColor={COLORS.primary}
@@ -214,49 +222,7 @@ export const BookingsScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Safe Area Top Header */}
-      <View
-        style={[
-          styles.topBar,
-          {
-            paddingTop: Math.max(insets.top, 12) + 6,
-            backgroundColor: colors.surface,
-            borderBottomColor: colors.surfaceHigh,
-          },
-        ]}
-      >
-        <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>
-          My Sessions & <Text style={{ color: colors.primary }}>QR Passes</Text>
-        </Text>
-      </View>
-
-      {/* Sub-Navigation Tabs — a sliding underline tracks the pager 1:1 while dragging */}
-      <View style={[styles.subTabNav, { backgroundColor: colors.surface, borderBottomColor: colors.surfaceHigh }]}>
-        {TABS.map((tab) => (
-          <TouchableOpacity key={tab} style={styles.subTabBtn} onPress={() => goToTab(tab)} activeOpacity={0.7}>
-            <Text
-              style={[
-                styles.subTabBtnText,
-                { color: activeSubTab === tab ? colors.primary : colors.textMuted },
-                activeSubTab === tab && styles.subTabBtnTextActive,
-              ]}
-            >
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
-        <Animated.View
-          style={[
-            styles.subTabIndicator,
-            {
-              width: pillWidth,
-              backgroundColor: colors.primary,
-              transform: [{ translateX: pillTranslate }],
-            },
-          ]}
-        />
-      </View>
-
+      <AppBackground />
       {/* Swipeable pager — switch tabs with a horizontal swipe gesture */}
       <Animated.ScrollView
         ref={pagerRef}
@@ -274,6 +240,40 @@ export const BookingsScreen: React.FC = () => {
           <React.Fragment key={tab}>{renderPage(tab)}</React.Fragment>
         ))}
       </Animated.ScrollView>
+
+      {/* Floating blur header (title + sub-tabs) — pages scroll behind it */}
+      <BlurHeader height={headerHeight} contentStyle={{ paddingTop: headerTop, paddingHorizontal: SPACING.containerPadding }}>
+        <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>
+          My Sessions & <Text style={{ color: colors.primary }}>QR Passes</Text>
+        </Text>
+
+        {/* Sub-Navigation Tabs — a sliding underline tracks the pager 1:1 while dragging */}
+        <View style={[styles.subTabNav, { marginTop: 8 }]}>
+          {TABS.map((tab) => (
+            <TouchableOpacity key={tab} style={styles.subTabBtn} onPress={() => goToTab(tab)} activeOpacity={0.7}>
+              <Text
+                style={[
+                  styles.subTabBtnText,
+                  { color: activeSubTab === tab ? colors.primary : colors.textMuted },
+                  activeSubTab === tab && styles.subTabBtnTextActive,
+                ]}
+              >
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <Animated.View
+            style={[
+              styles.subTabIndicator,
+              {
+                width: pillWidth,
+                backgroundColor: colors.primary,
+                transform: [{ translateX: pillTranslate }],
+              },
+            ]}
+          />
+        </View>
+      </BlurHeader>
 
       {/* Dynamic QR Modal */}
       <QRCodeModal
@@ -294,26 +294,22 @@ const styles = StyleSheet.create({
   topBar: {
     paddingHorizontal: SPACING.containerPadding,
     paddingBottom: 12,
-    backgroundColor: COLORS.surface,
+    backgroundColor: 'rgba(10,10,14,0.88)',
   },
   topBarTitle: {
-    fontSize: 22,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.3,
-    lineHeight: 28,
+    fontSize: 21,
+    fontFamily: FONTS.bold,
+    letterSpacing: -0.4,
+    lineHeight: 26,
     color: COLORS.onSurface,
   },
   subTabNav: {
     flexDirection: 'row',
     position: 'relative',
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING.containerPadding,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceHigh,
   },
   subTabIndicator: {
     position: 'absolute',
-    left: SPACING.containerPadding,
+    left: 0,
     bottom: -1,
     height: 3,
     borderRadius: RADIUS.full,
@@ -343,12 +339,12 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl,
   },
   bookingCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.md,
     marginBottom: SPACING.cardGap,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -373,7 +369,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.surfaceLow,
+    backgroundColor: COLORS.glassHigh,
     borderRadius: RADIUS.lg,
     padding: 10,
     marginTop: SPACING.sm,
@@ -392,13 +388,13 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
   },
   emptyCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     alignItems: 'center',
     marginTop: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   emptyTitle: {
     fontSize: 16,

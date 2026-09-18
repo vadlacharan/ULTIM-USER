@@ -65,7 +65,7 @@ export const SwipeToBook: React.FC<SwipeToBookProps> = ({
     <View
       style={[
         styles.container,
-        { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh },
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
         isInteractionDisabled && styles.disabledContainer,
       ]}
       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 87, 34, 0.4)',
+    backgroundColor: 'rgba(255, 90, 31, 0.4)',
     borderRadius: RADIUS.full,
   },
   textWrapper: {

@@ -91,6 +91,11 @@ export const adaptTenantToFacility = (
  * Adapter helper to transform Payload Membership Plan response to UI Plan model
  */
 export const adaptMembershipPlan = (plan: any, facilityName?: string): MembershipPlan => {
+  const actualPrice = Number(plan.planPrice) > 0 ? Number(plan.planPrice) : undefined;
+  const discounted = Number(plan.discountedPrice) > 0 ? Number(plan.discountedPrice) : undefined;
+  const hasDiscount = !!discounted && !!actualPrice && discounted < actualPrice;
+  const sellingPrice = hasDiscount ? discounted : actualPrice;
+
   return {
     id: String(plan.id),
     facilityId: String(plan.tenant?.id || plan.tenant || '1'),
@@ -99,7 +104,9 @@ export const adaptMembershipPlan = (plan: any, facilityName?: string): Membershi
     creditsGranted: plan.creditsOffered || 0,
     validActivities: plan.supportedActivities || [],
     durationDays: (parseInt(plan.Duration || '1', 10) || 1) * 30,
-    price: plan.planPrice ? String(plan.planPrice) : 'Price on Request',
+    price: sellingPrice ? String(sellingPrice) : 'Price on Request',
+    originalPrice: hasDiscount ? String(actualPrice) : undefined,
+    hasDiscount,
     description: plan.description || 'Access membership plan for facility activities.',
     features: [
       plan.creditsOffered ? `${plan.creditsOffered} Credits Granted` : 'Credit Allocated On-Site',

@@ -13,12 +13,14 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../theme/theme';
+import { getActivityIcon } from '../utils/activityIcons';
 import { NoticeBanner } from '../components/NoticeBanner';
 import { StatusBadge } from '../components/StatusBadge';
-import { CreditIcon } from '../components/CreditIcon';
 import { IconButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
+import { AppBackground } from '../components/Background';
 import { api } from '../services/api';
 import { adaptMembershipPlan, adaptTenantToFacility } from '../services/adapters';
 import { MembershipPlan, Facility } from '../types';
@@ -147,6 +149,7 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AppBackground />
       {/* Floating Back Button */}
       <IconButton
         icon="arrow-back"
@@ -154,7 +157,7 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
         iconSize={22}
         iconColor="#FFF"
         backgroundColor="rgba(19, 19, 18, 0.75)"
-        borderColor={COLORS.surfaceHigh}
+        borderColor={'rgba(255,255,255,0.10)'}
         onPress={() => navigation.goBack()}
         style={[styles.floatingBackBtn, { top: Math.max(insets.top, 12) + 6 }]}
       />
@@ -200,7 +203,7 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
             </>
           ) : (
             <View style={styles.placeholderHero}>
-              <Ionicons name="fitness-outline" size={54} color={COLORS.primary} />
+              <Ionicons name="barbell-outline" size={54} color={COLORS.primary} />
               <Text style={styles.placeholderHeroText}>NO FACILITY PHOTOS LISTED</Text>
             </View>
           )}
@@ -222,7 +225,7 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
 
           {/* Location / Get Directions Card */}
           <TouchableOpacity
-            style={[styles.locationCard, { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh }]}
+            style={[styles.locationCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
             onPress={handleOpenGoogleMaps}
             activeOpacity={0.85}
           >
@@ -254,7 +257,7 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
               <Text style={[styles.sectionHeader, { color: colors.onSurface }]}>CENTER AMENITIES</Text>
               <View style={styles.amenitiesGrid}>
                 {facility.amenities.map((am) => (
-                  <View key={am.id} style={[styles.amenityChip, { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh }]}>
+                  <View key={am.id} style={[styles.amenityChip, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
                     <Ionicons name="checkmark-circle" size={16} color={colors.tertiary} />
                     <Text style={[styles.amenityText, { color: colors.onSurface }]}>{am.name}</Text>
                   </View>
@@ -274,45 +277,102 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
           {loadingPlans ? (
             <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} />
           ) : facilityPlans.length === 0 ? (
-            <View style={[styles.emptyPlansCard, { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh }]}>
+            <View style={[styles.emptyPlansCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
               <Ionicons name="card-outline" size={32} color={colors.textMuted} />
               <Text style={[styles.emptyPlansText, { color: colors.textMuted }]}>No active membership plans listed online.</Text>
             </View>
           ) : (
-            facilityPlans.map((plan) => (
-              <TouchableOpacity
-                key={plan.id}
-                style={[styles.planCard, { backgroundColor: colors.surfaceContainer, borderColor: colors.surfaceHigh }]}
-                onPress={() =>
-                  navigation.navigate('PlanDetail', {
-                    plan,
-                    facilityName: facility.name,
-                  })
-                }
-                activeOpacity={0.88}
-              >
-                <View style={styles.planCardHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.planTitle, { color: colors.onSurface }]}>{plan.title}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                      <Text style={styles.planCredits}>{plan.creditsGranted}</Text>
-                      <CreditIcon size={20} />
+            facilityPlans.map((plan) => {
+              const planIcon = getActivityIcon(plan.validActivities?.[0] || facility.category);
+              const subline =
+                plan.description?.trim() ||
+                (plan.validActivities?.length
+                  ? plan.validActivities.slice(0, 3).join(' · ')
+                  : `Valid ${plan.durationDays} days`);
+              const priceText = isNaN(Number(plan.price)) ? plan.price : `₹${plan.price}`;
+              const savings =
+                plan.hasDiscount && plan.originalPrice
+                  ? Math.max(0, Number(plan.originalPrice) - Number(plan.price))
+                  : 0;
+
+              return (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={[styles.passWrapper, SHADOWS.card]}
+                  onPress={() =>
+                    navigation.navigate('PlanDetail', {
+                      plan,
+                      facilityName: facility.name,
+                    })
+                  }
+                  activeOpacity={0.9}
+                >
+                  <View
+                    style={[
+                      styles.passCard,
+                      { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                    ]}
+                  >
+                    {/* Frosty sheen */}
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0)']}
+                      start={{ x: 1, y: 0 }}
+                      end={{ x: 0.2, y: 0.9 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <MaterialCommunityIcons
+                      name={planIcon}
+                      size={132}
+                      color="rgba(255,255,255,0.05)"
+                      style={styles.passDecor}
+                    />
+
+                    <View style={styles.passHeader}>
+                      <View style={styles.passMark}>
+                        <MaterialCommunityIcons name={planIcon} size={19} color={COLORS.secondary} />
+                      </View>
+                      <View style={styles.passCreditsCol}>
+                        <View style={styles.passCreditsRow}>
+                          <Text style={styles.passCreditsNum}>{plan.creditsGranted}</Text>
+                          <Text style={styles.passCreditsWord}>credits</Text>
+                        </View>
+                        <Text style={styles.passCreditsOf}>{plan.durationDays} DAY PASS</Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.passTitle} numberOfLines={2}>
+                      {plan.title}
+                    </Text>
+                    <Text style={styles.passSub} numberOfLines={1}>
+                      {subline}
+                    </Text>
+
+                    <View style={styles.passFooter}>
+                      <View>
+                        <View style={styles.priceLabelRow}>
+                          <Text style={styles.passPriceLabel}>OFFLINE RATE</Text>
+                          {savings > 0 && (
+                            <View style={styles.saveChip}>
+                              <Text style={styles.saveChipText}>SAVE ₹{savings}</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.priceRow}>
+                          <Text style={styles.passPrice}>{priceText}</Text>
+                          {savings > 0 && (
+                            <Text style={styles.passPriceStrike}>{`₹${plan.originalPrice}`}</Text>
+                          )}
+                        </View>
+                      </View>
+                      <View style={[styles.passBtn, SHADOWS.ember]}>
+                        <Text style={styles.passBtnText}>VIEW DETAILS</Text>
+                        <Ionicons name="chevron-forward" size={13} color={COLORS.onPrimary} />
+                      </View>
                     </View>
                   </View>
-                  <Text style={[styles.planPrice, { color: colors.primary }]}>
-                    {isNaN(Number(plan.price)) ? plan.price : `₹${plan.price}`}
-                  </Text>
-                </View>
-
-                <View style={[styles.planFooter, { borderTopColor: colors.surfaceHigh }]}>
-                  <Text style={[styles.planDuration, { color: colors.textMuted }]}>Valid {plan.durationDays} Days</Text>
-                  <View style={styles.viewPlanBtn}>
-                    <Text style={styles.viewPlanBtnText}>VIEW DETAILS</Text>
-                    <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -337,7 +397,7 @@ const styles = StyleSheet.create({
     height: 240,
     width: '100%',
     position: 'relative',
-    backgroundColor: COLORS.surfaceLow,
+    backgroundColor: COLORS.glassHigh,
   },
   carouselSlide: {
     width: SCREEN_WIDTH,
@@ -350,7 +410,7 @@ const styles = StyleSheet.create({
   },
   heroGradient: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(19, 19, 18, 0.35)',
+    backgroundColor: 'rgba(5, 5, 6, 0.30)',
   },
   dotsContainer: {
     position: 'absolute',
@@ -375,7 +435,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.surfaceLow,
+    backgroundColor: COLORS.glassHigh,
   },
   placeholderHeroText: {
     fontSize: 10,
@@ -395,13 +455,13 @@ const styles = StyleSheet.create({
   ratingBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(19, 19, 18, 0.85)',
+    backgroundColor: 'rgba(12, 12, 15, 0.85)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
     marginLeft: 8,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   ratingVal: {
     color: COLORS.onSurface,
@@ -492,14 +552,14 @@ const styles = StyleSheet.create({
   amenityChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: RADIUS.md,
     marginRight: 8,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   amenityText: {
     fontSize: 11,
@@ -508,13 +568,13 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
   },
   emptyPlansCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     alignItems: 'center',
     marginTop: 8,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   emptyPlansText: {
     fontSize: 12,
@@ -523,59 +583,140 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: 6,
   },
-  planCard: {
-    backgroundColor: COLORS.surfaceContainer,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
-  },
-  planCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  planTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.onSurface,
-  },
-  planCredits: {
-    fontSize: 18,
-    fontFamily: FONTS.bold,
-    color: COLORS.secondary,
-    marginTop: 2,
-  },
-  planPrice: {
-    fontSize: 18,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.primary,
-  },
-  planFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  passWrapper: {
     marginTop: 12,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.surfaceHigh,
+    borderRadius: 22,
   },
-  planDuration: {
-    fontSize: 11,
-    fontFamily: FONTS.regular,
-    lineHeight: 16,
+  passCard: {
+    borderRadius: 22,
+    padding: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  passDecor: {
+    position: 'absolute',
+    right: -24,
+    bottom: -30,
+    transform: [{ rotate: '-12deg' }],
+  },
+  passHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  passMark: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.glassHigh,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.glassBorder,
+  },
+  passCreditsCol: {
+    alignItems: 'flex-end',
+  },
+  passCreditsRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  passCreditsNum: {
+    fontSize: 25,
+    fontFamily: FONTS.black,
+    letterSpacing: -0.8,
+    color: '#FFFFFF',
+  },
+  passCreditsWord: {
+    fontSize: 13.5,
+    fontFamily: FONTS.bold,
+    letterSpacing: -0.2,
     color: COLORS.textMuted,
   },
-  viewPlanBtn: {
+  passCreditsOf: {
+    fontSize: 8.5,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.3,
+    marginTop: 3,
+    color: 'rgba(255,255,255,0.42)',
+  },
+  passTitle: {
+    fontSize: 25,
+    fontFamily: FONTS.black,
+    letterSpacing: -0.7,
+    lineHeight: 29,
+    color: '#FFFFFF',
+  },
+  passSub: {
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    marginTop: 4,
+    color: COLORS.textMuted,
+  },
+  passFooter: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  priceLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 7,
   },
-  viewPlanBtnText: {
-    fontSize: 11,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.primary,
-    letterSpacing: 0.5,
-    marginRight: 2,
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  saveChip: {
+    paddingHorizontal: 7,
+    paddingVertical: 1.5,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.goldPanel,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.goldBorder,
+  },
+  saveChipText: {
+    fontSize: 7.5,
+    fontFamily: FONTS.bold,
+    letterSpacing: 0.8,
+    color: COLORS.secondary,
+  },
+  passPriceStrike: {
+    fontSize: 12.5,
+    fontFamily: FONTS.medium,
+    color: 'rgba(255,255,255,0.38)',
+    textDecorationLine: 'line-through',
+  },
+  passPriceLabel: {
+    fontSize: 8.5,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.3,
+    color: 'rgba(255,255,255,0.42)',
+  },
+  passPrice: {
+    fontSize: 20,
+    fontFamily: FONTS.black,
+    letterSpacing: -0.4,
+    marginTop: 2,
+    color: '#FFFFFF',
+  },
+  passBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    height: 34,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.primary,
+  },
+  passBtnText: {
+    fontSize: 10,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.2,
+    color: COLORS.onPrimary,
   },
 });

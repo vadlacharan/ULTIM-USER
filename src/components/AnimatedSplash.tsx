@@ -68,7 +68,7 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#131312',
+    backgroundColor: '#050506',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.black,
     color: '#FFFFFF',
     letterSpacing: 6,
-    textShadowColor: 'rgba(255,87,34,0.4)',
+    textShadowColor: 'rgba(255,90,31,0.4)',
     textShadowOffset: { width: 0, height: 4 },
     textShadowRadius: 20,
   },
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   ribbon: {
-    backgroundColor: '#FF5722',
+    backgroundColor: '#FF4D12',
     paddingVertical: 12,
     overflow: 'hidden',
   },

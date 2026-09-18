@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { RADIUS } from '../../theme/theme';
+import { COLORS, RADIUS } from '../../theme/theme';
 import { AnimatedPressable } from './AnimatedPressable';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -33,7 +33,7 @@ export const IconButton: React.FC<IconButtonProps> = ({
   onPress,
   size = 34,
   iconSize,
-  iconColor = '#FFF',
+  iconColor,
   gradientColors,
   backgroundColor = 'transparent',
   borderColor,
@@ -41,13 +41,14 @@ export const IconButton: React.FC<IconButtonProps> = ({
   style,
 }) => {
   const resolvedIconSize = iconSize ?? Math.round(size * 0.44);
+  const resolvedIconColor = iconColor ?? (gradientColors ? COLORS.onPrimary : '#FFF');
   const circleStyle = {
     width: size,
     height: size,
     borderRadius: size / 2,
   };
 
-  const content = <Ionicons name={icon} size={resolvedIconSize} color={iconColor} />;
+  const content = <Ionicons name={icon} size={resolvedIconSize} color={resolvedIconColor} />;
 
   return (
     <AnimatedPressable onPress={onPress} disabled={disabled} scaleTo={0.88} style={style}>

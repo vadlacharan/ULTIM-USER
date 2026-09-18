@@ -8,13 +8,15 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
+import { BlurTitleHeader, useBlurHeaderLayout } from '../components/Blur';
+import { useTabBarClearance } from '../navigation/BlurTabBar';
 import { MembershipCard } from '../components/MembershipCard';
 import { NoticeBanner } from '../components/NoticeBanner';
 import { CreditIcon } from '../components/CreditIcon';
 import { GradientButton, OutlineButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
+import { AppBackground } from '../components/Background';
 
 interface AccessScreenProps {
   navigation: any;
@@ -31,9 +33,10 @@ export const AccessScreen: React.FC<AccessScreenProps> = ({ navigation }) => {
     colors,
   } = useApp();
 
-  const insets = useSafeAreaInsets();
   const activePasses = userMemberships.filter((m) => m.status === 'ACTIVE');
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const { height: headerHeight } = useBlurHeaderLayout();
+  const tabBarClearance = useTabBarClearance();
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -43,27 +46,16 @@ export const AccessScreen: React.FC<AccessScreenProps> = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Safe Area Top Bar */}
-      <View
-        style={[
-          styles.topBar,
-          {
-            paddingTop: Math.max(insets.top, 12) + 6,
-            backgroundColor: colors.surface,
-            borderBottomColor: colors.surfaceHigh,
-          },
-        ]}
-      >
-        <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>
-          Active Access & <Text style={{ color: colors.primary }}>Credits</Text>
-        </Text>
-      </View>
-
+      <AppBackground />
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: headerHeight + 24, paddingBottom: tabBarClearance + 16 },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
+            progressViewOffset={headerHeight}
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={COLORS.primary}
@@ -131,6 +123,11 @@ export const AccessScreen: React.FC<AccessScreenProps> = ({ navigation }) => {
           </>
         )}
       </ScrollView>
+
+      {/* Floating blur header — screens scroll behind it */}
+      <BlurTitleHeader
+        title={<>Active Access & <Text style={{ color: COLORS.primary }}>Credits</Text></>}
+      />
     </View>
   );
 };
@@ -143,9 +140,9 @@ const styles = StyleSheet.create({
   topBar: {
     paddingHorizontal: SPACING.containerPadding,
     paddingBottom: 12,
-    backgroundColor: COLORS.surface,
+    backgroundColor: 'rgba(10,10,14,0.88)',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.surfaceHigh,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   topBarTitle: {
     fontSize: 22,
@@ -159,13 +156,13 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl,
   },
   unauthCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     alignItems: 'center',
     marginTop: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   unauthTitle: {
     fontSize: 18,
@@ -187,12 +184,12 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
   },
   ledgerSummaryCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   summaryTopRow: {
     flexDirection: 'row',
@@ -212,13 +209,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   passesBadge: {
-    backgroundColor: COLORS.surfaceLow,
+    backgroundColor: COLORS.glassHigh,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: RADIUS.lg,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   passesBadgeVal: {
     fontSize: 20,
@@ -249,13 +246,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   emptyCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     alignItems: 'center',
     marginVertical: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.surfaceHigh,
+    borderColor: COLORS.glassBorder,
   },
   emptyTitle: {
     color: COLORS.onSurface,
@@ -275,7 +272,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
   },
   errorCard: {
-    backgroundColor: COLORS.surfaceContainer,
+    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.lg,
     alignItems: 'center',

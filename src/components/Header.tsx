@@ -5,86 +5,82 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS, RADIUS, SPACING } from '../theme/theme';
 import { useApp } from '../context/AppContext';
 import { IconButton } from './buttons';
+import { BlurHeader } from './Blur';
 
 interface HeaderProps {
   onNotificationPress: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onNotificationPress }) => {
-  const { currentLocation, notifications, isDark, toggleTheme, colors } = useApp();
+const ROW_HEIGHT = 32;
+const FADE_HEIGHT = 22;
+
+/** Header row + top padding, used by HomeScreen to inset its scroll content. */
+export const useHeaderLayout = () => {
   const insets = useSafeAreaInsets();
+  const top = Math.max(insets.top, 10) + 2;
+  return { top, height: top + ROW_HEIGHT + 8, total: top + ROW_HEIGHT + 8 + FADE_HEIGHT };
+};
+
+export const Header: React.FC<HeaderProps> = ({ onNotificationPress }) => {
+  const { currentLocation, notifications, colors } = useApp();
+  const { top, height } = useHeaderLayout();
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
-    <View
-      style={[
-        styles.headerContainer,
-        {
-          paddingTop: Math.max(insets.top, 12) + 6,
-          backgroundColor: colors.surface,
-          borderBottomColor: colors.surfaceHigh,
-        },
-      ]}
-    >
-      {/* LEFT — location pill */}
-      <View style={styles.leftCol}>
-        <View
-          style={[
-            styles.locationContainer,
-            {
-              backgroundColor: colors.surfaceContainer,
-              borderColor: colors.surfaceHigh,
-            },
-          ]}
-        >
-          <Ionicons name="location-sharp" size={14} color={colors.primary} />
-          <Text
-            style={[styles.locationValue, { color: colors.onSurface }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {currentLocation}
+    <BlurHeader height={height} fadeHeight={FADE_HEIGHT} intensity={44}>
+      <View style={[styles.headerContainer, { paddingTop: top }]}>
+        {/* LEFT — location pill */}
+        <View style={styles.leftCol}>
+          <View style={styles.locationContainer}>
+            <Ionicons name="location-sharp" size={13} color={colors.primary} />
+            <Text
+              style={[styles.locationValue, { color: colors.onSurface }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {currentLocation}
+            </Text>
+          </View>
+        </View>
+
+        {/* CENTER — brand, always exactly centered */}
+        <View style={styles.brandContainer}>
+          <Text style={[styles.brandText, { color: colors.onSurface }]}>
+            ULTIM<Text style={{ color: colors.primary }}>.</Text>
           </Text>
         </View>
-      </View>
 
-      {/* CENTER — brand, always exactly centered */}
-      <View style={styles.brandContainer}>
-        <Text style={[styles.brandText, { color: colors.onSurface }]}>
-          ULTIM<Text style={{ color: colors.primary }}>.</Text>
-        </Text>
-      </View>
-
-      {/* RIGHT — theme toggle + notification icon */}
-      <View style={styles.rightCol}>
-        <View style={styles.notificationWrapper}>
-          <IconButton
-            icon="notifications-outline"
-            onPress={onNotificationPress}
-            size={36}
-            iconSize={20}
-            iconColor={colors.onSurface}
-            backgroundColor={colors.surfaceContainer}
-            borderColor={colors.surfaceHigh}
-          />
-          {unreadCount > 0 && (
-            <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-              <Text style={styles.badgeText}>{unreadCount}</Text>
-            </View>
-          )}
+        {/* RIGHT — notification icon */}
+        <View style={styles.rightCol}>
+          <View style={styles.notificationWrapper}>
+            <IconButton
+              icon="notifications-outline"
+              onPress={onNotificationPress}
+              size={ROW_HEIGHT}
+              iconSize={17}
+              iconColor={colors.onSurface}
+              backgroundColor="rgba(255,255,255,0.06)"
+              borderColor="rgba(255,255,255,0.10)"
+            />
+            {unreadCount > 0 && (
+              <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+                <Text style={styles.badgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </View>
         </View>
       </View>
-    </View>
+    </BlurHeader>
   );
 };
 
 const styles = StyleSheet.create({
   headerContainer: {
+    flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: SPACING.containerPadding,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
+    paddingBottom: 8,
   },
   leftCol: {
     flex: 1,
@@ -93,14 +89,14 @@ const styles = StyleSheet.create({
   rightCol: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'flex-end',
   },
   brandContainer: {
     alignItems: 'center',
   },
   brandText: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: FONTS.black,
     letterSpacing: 2,
   },
@@ -109,10 +105,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    height: ROW_HEIGHT,
     borderRadius: RADIUS.full,
     maxWidth: 130,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   locationValue: {
     fontSize: 11,
@@ -127,14 +125,14 @@ const styles = StyleSheet.create({
     top: -2,
     right: -2,
     borderRadius: RADIUS.full,
-    width: 16,
-    height: 16,
+    width: 15,
+    height: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
   badgeText: {
     color: '#FFF',
-    fontSize: 9,
+    fontSize: 8.5,
     fontFamily: FONTS.extraBold,
   },
 });
