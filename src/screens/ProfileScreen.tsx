@@ -113,7 +113,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             </Text>
             <GradientButton
               label="SIGN IN / REGISTER"
-              onPress={() => navigation.navigate('Auth')}
+              onPress={() => navigation.navigate('SignIn')}
               style={styles.signInBtn}
             />
           </View>

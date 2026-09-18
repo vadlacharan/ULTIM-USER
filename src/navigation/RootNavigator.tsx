@@ -81,8 +81,17 @@ export const RootNavigator = () => {
           <Stack.Screen name="Transactions" component={TransactionsScreen} />
           <Stack.Screen name="Legal" component={LegalScreen} />
           <Stack.Screen name="Offline" component={OfflineScreen} />
-          {/* Reachable from guest mode when prompts ask the user to sign in */}
-          <Stack.Screen name="Auth" component={AuthScreen} options={{ animation: 'slide_from_bottom' }} />
+          {/* Guest sign-in flow. Uses its own route name so the root "Auth"
+              gate and this pushed version never alias each other — whenever it
+              is removed (or the gate swaps branches) React Navigation resets
+              to MainTabs automatically. */}
+          {!isAuthenticated && (
+            <Stack.Screen
+              name="SignIn"
+              component={AuthScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+          )}
         </>
       )}
     </Stack.Navigator>

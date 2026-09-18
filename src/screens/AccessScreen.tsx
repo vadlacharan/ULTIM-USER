@@ -73,7 +73,7 @@ export const AccessScreen: React.FC<AccessScreenProps> = ({ navigation }) => {
             </Text>
             <GradientButton
               label="SIGN IN / CREATE ACCOUNT"
-              onPress={() => navigation.navigate('Auth')}
+              onPress={() => navigation.navigate('SignIn')}
               style={styles.signInBtn}
             />
           </View>

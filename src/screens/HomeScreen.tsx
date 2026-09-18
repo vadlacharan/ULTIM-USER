@@ -175,7 +175,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         ) : (
           <TouchableOpacity
             style={[styles.authBanner, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-            onPress={() => navigation.navigate('Auth')}
+            onPress={() => navigation.navigate('SignIn')}
             activeOpacity={0.85}
           >
             <Ionicons name="person-circle" size={24} color={colors.secondary} />
@@ -185,7 +185,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </View>
             <GradientButton
               label="SIGN IN"
-              onPress={() => navigation.navigate('Auth')}
+              onPress={() => navigation.navigate('SignIn')}
               compact
             />
           </TouchableOpacity>
