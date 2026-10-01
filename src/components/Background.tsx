@@ -1,16 +1,17 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { COLORS, GRADIENTS } from '../theme/theme';
 
 /**
  * The app-wide "Ember on Black" backdrop: a vertical near-black wash with a
  * warm ember glow bleeding in from the top-right and a faint one bottom-left.
- * Rendered as the first child of every screen container so content, cards and
- * the progressive-blur headers all sit on top of it.
+ *
+ * Deliberately built from plain LinearGradients (no SVG) — SVG radial
+ * gradients get rasterized on every screen mount, which shows up as janky
+ * page transitions on Android.
  */
-export const AppBackground: React.FC = () => {
+const AppBackgroundComponent: React.FC = () => {
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <View style={styles.base} />
@@ -19,24 +20,26 @@ export const AppBackground: React.FC = () => {
         locations={[0, 0.45, 1]}
         style={StyleSheet.absoluteFill}
       />
-      <Svg style={StyleSheet.absoluteFill}>
-        <Defs>
-          <RadialGradient id="emberTop" cx="85%" cy="-5%" r="80%">
-            <Stop offset="0" stopColor={GRADIENTS.ember} stopOpacity={0.30} />
-            <Stop offset="0.45" stopColor={GRADIENTS.ember} stopOpacity={0.10} />
-            <Stop offset="1" stopColor={GRADIENTS.ember} stopOpacity={0} />
-          </RadialGradient>
-          <RadialGradient id="emberBottom" cx="5%" cy="105%" r="65%">
-            <Stop offset="0" stopColor={GRADIENTS.ember} stopOpacity={0.10} />
-            <Stop offset="1" stopColor={GRADIENTS.ember} stopOpacity={0} />
-          </RadialGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#emberTop)" />
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#emberBottom)" />
-      </Svg>
+      {/* Ember glow — top-right */}
+      <LinearGradient
+        colors={['rgba(255,90,31,0.28)', 'rgba(255,90,31,0.08)', 'rgba(255,90,31,0)']}
+        locations={[0, 0.45, 1]}
+        start={{ x: 1, y: 0 }}
+        end={{ x: 0.15, y: 0.85 }}
+        style={StyleSheet.absoluteFill}
+      />
+      {/* Faint ember wash — bottom-left */}
+      <LinearGradient
+        colors={['rgba(255,90,31,0.10)', 'rgba(255,90,31,0)']}
+        start={{ x: 0, y: 1 }}
+        end={{ x: 0.7, y: 0.3 }}
+        style={StyleSheet.absoluteFill}
+      />
     </View>
   );
 };
+
+export const AppBackground = React.memo(AppBackgroundComponent);
 
 const styles = StyleSheet.create({
   base: {

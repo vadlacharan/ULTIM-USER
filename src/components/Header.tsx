@@ -21,7 +21,7 @@ export const useHeaderLayout = () => {
   return { top, height: top + ROW_HEIGHT + 8, total: top + ROW_HEIGHT + 8 + FADE_HEIGHT };
 };
 
-export const Header: React.FC<HeaderProps> = ({ onNotificationPress }) => {
+const HeaderComponent: React.FC<HeaderProps> = ({ onNotificationPress }) => {
   const { currentLocation, notifications, colors } = useApp();
   const { top, height } = useHeaderLayout();
   const unreadCount = notifications.filter((n) => !n.isRead).length;
@@ -73,6 +73,8 @@ export const Header: React.FC<HeaderProps> = ({ onNotificationPress }) => {
     </BlurHeader>
   );
 };
+
+export const Header = React.memo(HeaderComponent);
 
 const styles = StyleSheet.create({
   headerContainer: {

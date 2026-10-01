@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -81,6 +81,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
       sportLabel: string;
       creditsPer60Mins: number;
       isIncludedInPlan: boolean;
+      capacityPerCourt: number;
       courts: { id: string; name: string }[];
     }[] = [];
 
@@ -108,6 +109,11 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
           sportLabel,
           creditsPer60Mins: creditsRate,
           isIncludedInPlan: true,
+          capacityPerCourt: Number(act.capacityPerCourt) > 0
+            ? Number(act.capacityPerCourt)
+            : actKey === 'badminton'
+              ? 6
+              : 1,
           courts: courtsList,
         });
       });
@@ -119,6 +125,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
         sportLabel: 'GYM',
         creditsPer60Mins: 100,
         isIncludedInPlan: true,
+        capacityPerCourt: 1,
         courts: [{ id: 'gym-main', name: 'Main Gym Floor' }],
       });
     }
@@ -180,6 +187,56 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
   const [selectedDate, setSelectedDate] = useState<string>('Today');
   const [duration, setDuration] = useState<60 | 120>(60);
 
+  // Gym is a flat-rate session — no duration choice, always 1× the rate.
+  const isGym = selectedActivity?.activityKey === 'gym';
+  const effectiveDuration = isGym ? 60 : duration;
+
+  // ── Live court availability (public endpoint, per-court counts) ──
+  const [courtAvailability, setCourtAvailability] = useState<Record<string, Record<string, number>>>({});
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+
+  const selectedDateObj = dates.find((d) => d.label === selectedDate) || dates[0];
+  const targetISODate = selectedDateObj?.isoDate;
+
+  const loadAvailability = useCallback(async () => {
+    if (!facility?.id || !targetISODate) return;
+    try {
+      setLoadingAvailability(true);
+      const res = await api.getCourtAvailability(facility.id, targetISODate);
+      setCourtAvailability(res?.courts || {});
+    } catch (e) {
+      console.log('[BookingFlow] Availability fetch error:', e);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  }, [facility?.id, targetISODate]);
+
+  useEffect(() => {
+    loadAvailability();
+  }, [loadAvailability]);
+
+  const courtCapacity = selectedActivity?.capacityPerCourt || 1;
+
+  const bookedCountFor = useCallback(
+    (courtName?: string, rawTime?: string) => {
+      if (!courtName || !rawTime) return 0;
+      const normalized = rawTime.slice(0, 5);
+      return courtAvailability[courtName.trim()]?.[normalized] ?? 0;
+    },
+    [courtAvailability]
+  );
+
+  const isCourtFullAt = useCallback(
+    (courtName?: string, rawTime?: string) => bookedCountFor(courtName, rawTime) >= courtCapacity,
+    [bookedCountFor, courtCapacity]
+  );
+
+  const freeCourtsAt = useCallback(
+    (rawTime?: string) =>
+      (selectedActivity?.courts || []).filter((c) => !isCourtFullAt(c.name, rawTime)).length,
+    [selectedActivity, isCourtFullAt]
+  );
+
   // Dynamic Time Slots - ONLY Start Time (e.g. 05:00 AM)
   const timeSlots = useMemo(() => {
     if (activeMembership?.timeSlots && Array.isArray(activeMembership.timeSlots) && activeMembership.timeSlots.length > 0) {
@@ -219,6 +276,19 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
     }
   }, [timeSlots]);
 
+  // Keep the selection valid as live availability / court changes roll in.
+  useEffect(() => {
+    if (!selectedSlot) return;
+    const currentFree =
+      !isCourtFullAt(selectedCourt?.name, selectedSlot.rawTime) &&
+      freeCourtsAt(selectedSlot.rawTime) > 0;
+    if (currentFree) return;
+    const next = timeSlots.find(
+      (slot) => !isCourtFullAt(selectedCourt?.name, slot.rawTime) && freeCourtsAt(slot.rawTime) > 0
+    );
+    if (next) setSelectedSlot(next);
+  }, [courtAvailability, selectedCourt, timeSlots, isCourtFullAt, freeCourtsAt, selectedSlot]);
+
   // Check if user already booked this specific slot
   const isAlreadyBookedForSelectedSlot = useMemo(() => {
     const selectedDateObj = dates.find((d) => d.label === selectedDate) || dates[0];
@@ -246,7 +316,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
   }, [bookings, dates, selectedDate, selectedSlot]);
 
   // Credit calculation
-  const requiredCredits = (duration / 60) * (selectedActivity?.creditsPer60Mins || 100);
+  const requiredCredits = (effectiveDuration / 60) * (selectedActivity?.creditsPer60Mins || 100);
   const userCreditBalance = activeMembership ? activeMembership.remainingCredits : 0;
   const isBalanceSufficient = userCreditBalance >= requiredCredits;
   const isActivityIncluded = selectedActivity?.isIncludedInPlan !== false;
@@ -296,7 +366,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
         courtName: selectedCourt?.name || 'Main Floor',
         dateStr: selectedDateObj.isoDate,
         timeSlotLabel: selectedSlot?.rawTime || selectedSlot?.time,
-        durationMins: duration,
+        durationMins: effectiveDuration,
         creditsSpent: requiredCredits,
         facilityImage: facility.imageUrl,
       });
@@ -499,17 +569,24 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
           })}
         </ScrollView>
 
-        {/* Court / Floor Selector */}
+        {/* Court / Floor Selector — live availability for the chosen slot */}
         <View style={styles.stepHeaderRow}>
           <Text style={[styles.stepTitle, { color: colors.onSurface }]}>COURT / FLOOR</Text>
-          <Text style={[styles.stepSubtitle, { color: colors.textMuted }]}>
-            {selectedActivity?.courts?.length || 0} Available
-          </Text>
+          <TouchableOpacity style={styles.liveChip} onPress={loadAvailability} activeOpacity={0.8}>
+            <View style={[styles.liveDot, { backgroundColor: loadingAvailability ? colors.textMuted : colors.success }]} />
+            <Text style={[styles.liveText, { color: colors.textMuted }]}>
+              {loadingAvailability ? 'SYNCING' : 'LIVE'}
+            </Text>
+            <Ionicons name="refresh" size={11} color={colors.textMuted} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.zoneScroll} contentContainerStyle={{ paddingRight: 4 }}>
           {selectedActivity?.courts.map((court) => {
             const isSelected = selectedCourt?.id === court.id;
+            const booked = bookedCountFor(court.name, selectedSlot?.rawTime);
+            const freeSpots = Math.max(0, courtCapacity - booked);
+            const isFull = freeSpots === 0;
             return (
               <TouchableOpacity
                 key={court.id}
@@ -535,12 +612,32 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
                 >
                   {court.name}
                 </Text>
+                <View
+                  style={[
+                    styles.courtBadge,
+                    {
+                      backgroundColor: isFull ? 'rgba(243,114,127,0.14)' : COLORS.emberPanel,
+                      borderColor: isFull ? 'rgba(243,114,127,0.35)' : COLORS.emberBorder,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.courtBadgeText,
+                      { color: isFull ? COLORS.error : COLORS.secondary },
+                    ]}
+                  >
+                    {isFull ? 'FULL' : `${freeSpots} FREE`}
+                  </Text>
+                </View>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
 
-        {/* Duration Selector */}
+        {/* Duration Selector — gym is flat-rate, so no duration choice there */}
+        {!isGym && (
+        <>
         <View style={styles.stepHeaderRow}>
           <Text style={[styles.stepTitle, { color: colors.onSurface }]}>SESSION DURATION</Text>
         </View>
@@ -580,6 +677,8 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
             </Text>
           </TouchableOpacity>
         </View>
+        </>
+        )}
 
         {/* Time Slots */}
         <View style={styles.stepHeaderRow}>
@@ -592,6 +691,9 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
         <View style={styles.slotGrid}>
           {timeSlots.map((slot) => {
             const isSelected = selectedSlot?.id === slot.id;
+            const free = freeCourtsAt(slot.rawTime);
+            const courtFree = !isCourtFullAt(selectedCourt?.name, slot.rawTime);
+            const isAvailable = free > 0 && courtFree;
             return (
               <TouchableOpacity
                 key={slot.id}
@@ -599,10 +701,10 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
                   styles.slotChip,
                   { backgroundColor: colors.glass, borderColor: colors.glassBorder },
                   isSelected && [styles.selectedSlotChip, { borderColor: colors.primary, backgroundColor: colors.glassHigh }],
-                  !slot.isAvailable && [styles.disabledSlotChip, { backgroundColor: colors.glassHigh }],
+                  !isAvailable && [styles.disabledSlotChip, { backgroundColor: colors.glassHigh }],
                 ]}
-                onPress={() => slot.isAvailable && setSelectedSlot(slot)}
-                disabled={!slot.isAvailable}
+                onPress={() => isAvailable && setSelectedSlot(slot)}
+                disabled={!isAvailable}
                 activeOpacity={0.8}
               >
                 <View style={styles.slotTimeRow}>
@@ -616,13 +718,20 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
                       styles.slotTimeText,
                       { color: colors.onSurface },
                       isSelected && { color: colors.primary },
-                      !slot.isAvailable && { color: colors.textMuted },
+                      !isAvailable && { color: colors.textMuted },
                     ]}
                   >
                     {slot.time}
                   </Text>
                 </View>
-                {!slot.isAvailable && <Text style={[styles.bookedTag, { color: colors.error }]}>FULL</Text>}
+                <Text
+                  style={[
+                    styles.slotStatusText,
+                    { color: !isAvailable ? COLORS.error : COLORS.secondary },
+                  ]}
+                >
+                  {free === 0 ? 'FULL' : courtFree ? `${free} FREE` : 'COURT BOOKED'}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -645,7 +754,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Date & Start Time</Text>
             <Text style={[styles.summaryValue, { color: colors.onSurface }]}>
-              {selectedDate} • {selectedSlot?.time} ({duration}m)
+              {selectedDate} • {selectedSlot?.time} ({effectiveDuration}m)
             </Text>
           </View>
 
@@ -933,6 +1042,44 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   selectedCourtChip: {},
+  liveChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.glass,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.glassBorder,
+  },
+  liveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  liveText: {
+    fontSize: 8.5,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1.1,
+  },
+  courtBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  courtBadgeText: {
+    fontSize: 8,
+    fontFamily: FONTS.bold,
+    letterSpacing: 0.8,
+  },
+  slotStatusText: {
+    fontSize: 8.5,
+    fontFamily: FONTS.bold,
+    letterSpacing: 0.8,
+    marginTop: 2,
+  },
   courtName: {
     fontSize: 13,
     fontFamily: FONTS.bold,

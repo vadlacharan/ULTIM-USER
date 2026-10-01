@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -27,11 +28,14 @@ export const GlassBlur: React.FC<{
   blurAmount?: number;
 }> = ({ style, blurAmount = 30 }) => {
   if (IS_EXPO_GO) return null;
+  // Rounds = extra blur passes; Android's hardware blur is much more
+  // expensive per pass, so it gets a shallower, cheaper configuration.
+  const isIOS = Platform.OS === 'ios';
   return (
     <BlurView
       blurType="systemUltraThinMaterialDark"
-      blurAmount={blurAmount}
-      blurRounds={3}
+      blurAmount={isIOS ? blurAmount : Math.min(blurAmount, 22)}
+      blurRounds={isIOS ? 5 : 2}
       reducedTransparencyFallbackColor="#101013"
       style={style ?? StyleSheet.absoluteFill}
     />
@@ -85,8 +89,8 @@ export const ProgressiveBlur: React.FC<ProgressiveBlurProps> = ({
       {!IS_EXPO_GO && (
         <ProgressiveBlurView
           blurType="dark"
-          blurAmount={intensity}
-          blurRounds={3}
+          blurAmount={Platform.OS === 'ios' ? intensity : Math.min(intensity, 26)}
+          blurRounds={Platform.OS === 'ios' ? 5 : 2}
           direction="blurredTopClearBottom"
           startOffset={startOffset}
           overlayColor="rgba(8,8,10,0.18)"

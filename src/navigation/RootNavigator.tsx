@@ -31,6 +31,9 @@ const MainTabNavigator = () => {
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: COLORS.background },
+        // Suspend background tabs so heavy screens stop re-rendering while
+        // the user is elsewhere — keeps page transitions smooth.
+        freezeOnBlur: true,
       }}
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} options={{ tabBarLabel: 'HOME' }} />
@@ -66,6 +69,7 @@ export const RootNavigator = () => {
         headerShown: false,
         animation: 'slide_from_right',
         contentStyle: { backgroundColor: COLORS.background },
+        freezeOnBlur: true,
       }}
     >
       {!canBrowse ? (

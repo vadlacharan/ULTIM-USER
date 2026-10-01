@@ -20,7 +20,7 @@ interface SessionNowBarProps {
  * "Now playing" bar for the next session — same glass language as the tab
  * bar, floating above it. Tap the QR chip for the check-in pass.
  */
-export const SessionNowBar: React.FC<SessionNowBarProps> = ({ booking, onQrPress, loading = false }) => {
+const SessionNowBarComponent: React.FC<SessionNowBarProps> = ({ booking, onQrPress, loading = false }) => {
   const { colors } = useApp();
   const tabBarBottom = useTabBarBottomOffset();
 
@@ -79,6 +79,8 @@ export const SessionNowBar: React.FC<SessionNowBarProps> = ({ booking, onQrPress
     </View>
   );
 };
+
+export const SessionNowBar = React.memo(SessionNowBarComponent);
 
 const styles = StyleSheet.create({
   shell: {

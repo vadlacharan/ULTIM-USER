@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { enableFreeze } from 'react-native-screens';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import {
@@ -20,6 +21,9 @@ import { COLORS } from './src/theme/theme';
 
 // Keep native splash visible while JS bundle + fonts load
 SplashScreen.preventAutoHideAsync();
+
+// Suspends inactive screens (paired with freezeOnBlur) to cut render jank.
+enableFreeze(true);
 
 function MainAppContent() {
   const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);

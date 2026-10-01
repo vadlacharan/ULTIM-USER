@@ -204,6 +204,14 @@ class ApiService {
 
   // --- BOOKINGS ---
 
+  /** Live per-court booking counts for a day (public, no member data). */
+  public async getCourtAvailability(
+    tenantId: string | number,
+    dateISO: string,
+  ): Promise<{ date: string; courts: Record<string, Record<string, number>> }> {
+    return this.request(`/bookings/availability?tenant=${tenantId}&date=${dateISO}`);
+  }
+
   public async createBooking(data: {
     membership: string | number;
     activity: string;

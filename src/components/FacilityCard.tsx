@@ -30,7 +30,7 @@ interface FacilityCardProps {
  * under it on the screen background (no gray container), like a music app's
  * song card. Overlay chips carry the only chrome.
  */
-export const FacilityCard: React.FC<FacilityCardProps> = ({ facility, onPress, width, aspectRatio = 4 / 3, style }) => {
+const FacilityCardComponent: React.FC<FacilityCardProps> = ({ facility, onPress, width, aspectRatio = 4 / 3, style }) => {
   const { colors } = useApp();
   const [imgLoading, setImgLoading] = useState<boolean>(true);
   const [imgFailed, setImgFailed] = useState<boolean>(false);
@@ -121,6 +121,8 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ facility, onPress, w
     </TouchableOpacity>
   );
 };
+
+export const FacilityCard = React.memo(FacilityCardComponent);
 
 const styles = StyleSheet.create({
   card: {},
