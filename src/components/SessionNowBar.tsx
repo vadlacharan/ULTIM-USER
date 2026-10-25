@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { SlideInUp, SlideOutDown } from 'react-native-reanimated';
 import { COLORS, FONTS, GRADIENTS, RADIUS } from '../theme/theme';
 import { useApp } from '../context/AppContext';
 import { GlassBlur, IS_EXPO_GO } from './Blur';
@@ -18,65 +19,65 @@ interface SessionNowBarProps {
 
 /**
  * "Now playing" bar for the next session — same glass language as the tab
- * bar, floating above it. Tap the QR chip for the check-in pass.
+ * bar, floating above it. Slides in on the UI thread when a session appears.
  */
 const SessionNowBarComponent: React.FC<SessionNowBarProps> = ({ booking, onQrPress, loading = false }) => {
   const { colors } = useApp();
   const tabBarBottom = useTabBarBottomOffset();
 
   return (
-    <View
+    <Animated.View
+      entering={SlideInUp.delay(150).duration(380).damping(26).stiffness(280)}
+      exiting={SlideOutDown.duration(220)}
       style={[styles.shell, { bottom: TAB_BAR_HEIGHT + tabBarBottom + 10 }]}
       pointerEvents="box-none"
     >
-      <View style={styles.shadowLayer}>
-        <View style={styles.bar}>
-          <GlassBlur style={StyleSheet.absoluteFill} blurAmount={50} />
-          <LinearGradient
-            colors={
-              IS_EXPO_GO
-                ? ['rgba(16,16,18,0.80)', 'rgba(6,6,8,0.92)']
-                : ['rgba(14,14,16,0.10)', 'rgba(5,5,6,0.20)']
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
+      <View style={styles.bar}>
+        <GlassBlur style={StyleSheet.absoluteFill} blurAmount={24} />
+        <LinearGradient
+          colors={
+            IS_EXPO_GO
+              ? ['rgba(16,16,18,0.80)', 'rgba(6,6,8,0.92)']
+              : ['rgba(14,14,16,0.10)', 'rgba(5,5,6,0.20)']
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
 
-          <LinearGradient
-            colors={[...GRADIENTS.primaryButton]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.chip}
-          >
-            <Ionicons name="flash-sharp" size={17} color={COLORS.onPrimary} />
-          </LinearGradient>
+        <LinearGradient
+          colors={[...GRADIENTS.primaryButton]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.chip}
+        >
+          <Ionicons name="flash-sharp" size={17} color={COLORS.onPrimary} />
+        </LinearGradient>
 
-          <View style={styles.textCol}>
-            <Text style={[styles.title, { color: colors.onSurface }]} numberOfLines={1}>
-              {booking.facilityName}
-            </Text>
-            <Text style={[styles.sub, { color: colors.textMuted }]} numberOfLines={1}>
-              {booking.dateStr} · {booking.timeSlotLabel} · {booking.creditsSpent} cr
-            </Text>
-          </View>
-
-          {loading ? (
-            <View style={styles.loadingChip}>
-              <ActivityIndicator size="small" color={COLORS.onPrimary} />
-            </View>
-          ) : (
-            <IconButton
-              icon="qr-code-sharp"
-              onPress={onQrPress}
-              size={40}
-              iconSize={20}
-              gradientColors={[...GRADIENTS.primaryButton]}
-            />
-          )}
+        <View style={styles.textCol}>
+          <Text style={[styles.title, { color: colors.onSurface }]} numberOfLines={1}>
+            {booking.facilityName}
+          </Text>
+          <Text style={[styles.sub, { color: colors.textMuted }]} numberOfLines={1}>
+            {booking.dateStr} · {booking.timeSlotLabel} · {booking.creditsSpent} cr
+          </Text>
         </View>
+
+        {loading ? (
+          <View style={styles.loadingChip}>
+            <ActivityIndicator size="small" color={COLORS.onPrimary} />
+          </View>
+        ) : (
+          <IconButton
+            icon="qr-code-sharp"
+            onPress={onQrPress}
+            size={40}
+            iconSize={20}
+            gradientColors={[...GRADIENTS.primaryButton]}
+          />
+        )}
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -89,11 +90,6 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: 14,
     zIndex: 11,
-  },
-  shadowLayer: {
-    // No drop shadow here: with a transparent container iOS derives the
-    // shadow from each child's alpha, which casts a fuzzy glow around the
-    // icons. The glass border + blur carry the elevation instead.
   },
   bar: {
     height: 58,

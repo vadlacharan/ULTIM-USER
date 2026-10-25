@@ -1,5 +1,10 @@
-import React, { useRef } from 'react';
-import { Animated, Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native';
+import React from 'react';
+import { Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
 
 interface AnimatedPressableProps extends Omit<PressableProps, 'style'> {
   style?: StyleProp<ViewStyle>;
@@ -10,9 +15,8 @@ interface AnimatedPressableProps extends Omit<PressableProps, 'style'> {
 
 /**
  * Shared micro-interaction wrapper used by every button in the app.
- * Scales down on press-in and springs back on release, giving every
- * button a consistent, tactile "premium app" feel instead of the flat
- * opacity-only feedback TouchableOpacity gives by default.
+ * Runs entirely on the UI thread (Reanimated) so press feedback stays at
+ * 60fps even while lists scroll or images decode on the JS thread.
  */
 export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   style,
@@ -23,38 +27,27 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   disabled,
   ...rest
 }) => {
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(1);
 
-  const handlePressIn: NonNullable<PressableProps['onPressIn']> = (e) => {
-    Animated.spring(scale, {
-      toValue: scaleTo,
-      useNativeDriver: true,
-      speed: 50,
-      bounciness: 4,
-    }).start();
-    onPressIn?.(e);
-  };
-
-  const handlePressOut: NonNullable<PressableProps['onPressOut']> = (e) => {
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 24,
-      bounciness: 9,
-    }).start();
-    onPressOut?.(e);
-  };
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: disabled ? 0.5 : 1,
+  }));
 
   return (
     <Pressable
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
+      onPressIn={(e) => {
+        scale.value = withSpring(scaleTo, { damping: 22, stiffness: 480, mass: 0.6 });
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        scale.value = withSpring(1, { damping: 16, stiffness: 320, mass: 0.7 });
+        onPressOut?.(e);
+      }}
       disabled={disabled}
       {...rest}
     >
-      <Animated.View style={[style, { transform: [{ scale }] }, disabled && { opacity: 0.5 }]}>
-        {children}
-      </Animated.View>
+      <Animated.View style={[style, animatedStyle]}>{children}</Animated.View>
     </Pressable>
   );
 };

@@ -67,21 +67,47 @@ export const RootNavigator = () => {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
+        // Native spring push — buttery on both platforms, runs off the JS
+        // thread so list scrolling never blocks the transition.
         animation: 'slide_from_right',
+        animationDuration: 260,
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+        gestureDirection: 'horizontal',
         contentStyle: { backgroundColor: COLORS.background },
         freezeOnBlur: true,
       }}
     >
       {!canBrowse ? (
-        <Stack.Screen name="Auth" component={AuthScreen} />
+        <Stack.Screen
+          name="Auth"
+          component={AuthScreen}
+          options={{ animation: 'fade', animationDuration: 200 }}
+        />
       ) : (
         <>
-          <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+          <Stack.Screen
+            name="MainTabs"
+            component={MainTabNavigator}
+            options={{ animation: 'fade', animationDuration: 180 }}
+          />
           <Stack.Screen name="FacilityDetail" component={FacilityDetailScreen} />
-          <Stack.Screen name="PlanDetail" component={PlanDetailScreen} />
-          <Stack.Screen name="BookingFlow" component={BookingFlowScreen} />
+          <Stack.Screen
+            name="PlanDetail"
+            component={PlanDetailScreen}
+            options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
+          />
+          <Stack.Screen
+            name="BookingFlow"
+            component={BookingFlowScreen}
+            options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
+          />
           <Stack.Screen name="CategoryFacilities" component={CategoryFacilitiesScreen} />
-          <Stack.Screen name="Notifications" component={NotificationScreen} />
+          <Stack.Screen
+            name="Notifications"
+            component={NotificationScreen}
+            options={{ animation: 'fade_from_bottom', animationDuration: 240 }}
+          />
           <Stack.Screen name="Transactions" component={TransactionsScreen} />
           <Stack.Screen name="Legal" component={LegalScreen} />
           <Stack.Screen name="Offline" component={OfflineScreen} />
@@ -93,7 +119,7 @@ export const RootNavigator = () => {
             <Stack.Screen
               name="SignIn"
               component={AuthScreen}
-              options={{ animation: 'slide_from_bottom' }}
+              options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
             />
           )}
         </>

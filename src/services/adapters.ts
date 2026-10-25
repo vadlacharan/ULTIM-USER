@@ -120,7 +120,13 @@ export const adaptMembershipPlan = (plan: any, facilityName?: string): Membershi
  * Adapter helper to transform Payload Membership response to UI UserMembership model
  */
 export const adaptMembership = (m: any): UserMembership => {
-  const isExpired = m.endDate ? new Date() > new Date(m.endDate) : false;
+  const now = new Date();
+  const end = m.endDate ? new Date(m.endDate) : null;
+  const start = m.startDate ? new Date(m.startDate) : null;
+  const isExpired = end ? now > end : false;
+  // Consecutive passes are common (this month + next month) — a pass whose
+  // window hasn't started yet must not be treated as the active pass.
+  const notStarted = start ? now < start : false;
   return {
     id: String(m.id),
     facilityId: String(m.tenant?.id || m.tenant || '1'),
@@ -130,7 +136,9 @@ export const adaptMembership = (m: any): UserMembership => {
     remainingCredits: m.availableCredits ?? 0,
     expiryDate: m.endDate ? m.endDate.split('T')[0] : 'N/A',
     activatedDate: m.startDate ? m.startDate.split('T')[0] : 'N/A',
-    status: isExpired ? 'EXPIRED' : 'ACTIVE',
+    status: isExpired ? 'EXPIRED' : notStarted ? 'PENDING' : 'ACTIVE',
+    amountDue: Math.max(0, Number(m.amountDue ?? 0)),
+    amountPaid: Number(m.amountPaid ?? 0),
     validActivities: (() => {
       const supported = m.membershipPlan?.supportedActivities || m.supportedActivities;
       if (Array.isArray(supported) && supported.length > 0) {
@@ -164,11 +172,17 @@ export const adaptBooking = (b: any): Booking => {
   // only becomes PAST once its calendar day has fully elapsed), instead of
   // the previous naive "not today = PAST" check which incorrectly marked
   // future-dated bookings as past.
-  const status: Booking['status'] = b.status === 'cancelled'
-    ? 'CANCELLED'
-    : isSessionPast(dateStr, timeSlotLabel, durationMins)
-    ? 'PAST'
-    : 'UPCOMING';
+  // The backend now stores a real status (upcoming | cancelled | completed |
+  // expired) — trust it, and fall back to the date-based classification.
+  const backendStatus = String(b.status ?? '').toLowerCase();
+  const status: Booking['status'] =
+    backendStatus === 'cancelled'
+      ? 'CANCELLED'
+      : backendStatus === 'completed' || backendStatus === 'expired'
+      ? 'PAST'
+      : isSessionPast(dateStr, timeSlotLabel, durationMins)
+      ? 'PAST'
+      : 'UPCOMING';
 
   return {
     id: String(b.id),

@@ -203,11 +203,12 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
       <FlatList
         data={facilities}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <FacilityCard
             facility={item}
             aspectRatio={16 / 9}
             style={styles.listItem}
+            index={index % 10}
             onPress={() => navigation.navigate('FacilityDetail', { facilityId: item.id })}
           />
         )}
@@ -215,6 +216,11 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
         contentContainerStyle={[styles.listContent, { paddingTop: headerHeight + 20 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        removeClippedSubviews
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={7}
+        updateCellsBatchingPeriod={60}
         refreshControl={
           <RefreshControl
             progressViewOffset={headerHeight}

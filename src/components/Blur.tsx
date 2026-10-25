@@ -34,8 +34,8 @@ export const GlassBlur: React.FC<{
   return (
     <BlurView
       blurType="systemUltraThinMaterialDark"
-      blurAmount={isIOS ? blurAmount : Math.min(blurAmount, 22)}
-      blurRounds={isIOS ? 5 : 2}
+      blurAmount={isIOS ? Math.min(blurAmount, 24) : Math.min(blurAmount, 18)}
+      blurRounds={isIOS ? 3 : 2}
       reducedTransparencyFallbackColor="#101013"
       style={style ?? StyleSheet.absoluteFill}
     />
@@ -61,7 +61,7 @@ interface ProgressiveBlurProps {
 export const ProgressiveBlur: React.FC<ProgressiveBlurProps> = ({
   height,
   fadeHeight = 26,
-  intensity = 40,
+  intensity = 32,
   style,
 }) => {
   const solidHeight = Math.max(height - fadeHeight, 8);
@@ -89,8 +89,8 @@ export const ProgressiveBlur: React.FC<ProgressiveBlurProps> = ({
       {!IS_EXPO_GO && (
         <ProgressiveBlurView
           blurType="dark"
-          blurAmount={Platform.OS === 'ios' ? intensity : Math.min(intensity, 26)}
-          blurRounds={Platform.OS === 'ios' ? 5 : 2}
+          blurAmount={Platform.OS === 'ios' ? Math.min(intensity, 28) : Math.min(intensity, 20)}
+          blurRounds={Platform.OS === 'ios' ? 3 : 2}
           direction="blurredTopClearBottom"
           startOffset={startOffset}
           overlayColor="rgba(8,8,10,0.18)"

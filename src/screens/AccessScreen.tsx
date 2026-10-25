@@ -8,6 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { BlurTitleHeader, useBlurHeaderLayout } from '../components/Blur';
 import { useTabBarClearance } from '../navigation/BlurTabBar';
@@ -53,6 +54,7 @@ export const AccessScreen: React.FC<AccessScreenProps> = ({ navigation }) => {
           { paddingTop: headerHeight + 24, paddingBottom: tabBarClearance + 16 },
         ]}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews
         refreshControl={
           <RefreshControl
             progressViewOffset={headerHeight}
@@ -110,15 +112,43 @@ export const AccessScreen: React.FC<AccessScreenProps> = ({ navigation }) => {
                 />
               </View>
             ) : (
-              userMemberships.map((membership) => (
-                <MembershipCard
-                  key={membership.id}
-                  membership={membership}
-                  onBookSession={() =>
-                    navigation.navigate('BookingFlow', { facilityId: membership.facilityId })
-                  }
-                />
-              ))
+              <>
+                {/* ── LEDGER SUMMARY (Spotify "Your Library" header) ── */}
+                <Animated.View entering={FadeInDown.delay(40).duration(340).damping(24)}>
+                  <View style={[styles.ledgerSummaryCard, { backgroundColor: colors.emberPanel, borderColor: colors.emberBorder }]}>
+                    <View style={styles.summaryTopRow}>
+                      <View>
+                        <Text style={[styles.summaryLabel, { color: colors.primary }]}>TOTAL ACTIVE CREDITS</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                          <Text style={[styles.summaryVal, { color: colors.onSurface }]}>{totalActiveCredits}</Text>
+                          <CreditIcon size={30} />
+                        </View>
+                      </View>
+                      <View style={[styles.passesBadge, { backgroundColor: colors.glassHigh, borderColor: colors.glassBorder }]}>
+                        <Text style={[styles.passesBadgeVal, { color: colors.onSurface }]}>{activePasses.length}</Text>
+                        <Text style={[styles.passesBadgeText, { color: colors.textMuted }]}>ACTIVE {activePasses.length === 1 ? 'PASS' : 'PASSES'}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </Animated.View>
+
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+                    YOUR PASSES ({userMemberships.length})
+                  </Text>
+                </View>
+
+                {userMemberships.map((membership, idx) => (
+                  <MembershipCard
+                    key={membership.id}
+                    membership={membership}
+                    index={idx}
+                    onBookSession={() =>
+                      navigation.navigate('BookingFlow', { facilityId: membership.facilityId })
+                    }
+                  />
+                ))}
+              </>
             )}
           </>
         )}

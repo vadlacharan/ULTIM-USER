@@ -195,7 +195,10 @@ class ApiService {
   // --- MEMBERSHIPS (ACTIVE USER PASSES) ---
 
   public async getMyMemberships(userId: string | number): Promise<{ docs: any[] }> {
-    return this.request(`/memberships?where[member][equals]=${userId}&depth=2`);
+    // Depth 1 is enough: the app only reads the pass's own fields plus the
+    // populated plan (rates, slots) and tenant (facility name). Limit raised
+    // from the 10-doc default so members with many passes see all of them.
+    return this.request(`/memberships?where[member][equals]=${userId}&depth=1&limit=50`);
   }
 
   public async generateMembershipQrToken(membershipId: string | number): Promise<{ token: string }> {
@@ -234,7 +237,7 @@ class ApiService {
   }
 
   public async getMyBookings(userId: string | number, filter?: 'upcoming' | 'past'): Promise<{ docs: any[] }> {
-    let query = `?where[member][equals]=${userId}&depth=1&sort=-sessionDate`;
+    let query = `?where[member][equals]=${userId}&depth=1&sort=-sessionDate&limit=100`;
     const todayISO = new Date().toISOString().split('T')[0];
 
     if (filter === 'upcoming') {
@@ -252,10 +255,13 @@ class ApiService {
     });
   }
 
-  public async cancelBooking(bookingId: string | number): Promise<any> {
-    return this.request(`/bookings/${bookingId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'cancelled' }),
+  public async cancelBooking(
+    bookingId: string | number,
+  ): Promise<{ success: boolean; refundedCredits?: number; alreadyCancelled?: boolean }> {
+    // Backend endpoint cancels the session and refunds the credits to the pass.
+    return this.request(`/bookings/${bookingId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
@@ -263,7 +269,7 @@ class ApiService {
 
   public async getMyTransactions(userId: string | number): Promise<{ docs: any[] }> {
     try {
-      return await this.request(`/transactions?where[member][equals]=${userId}&depth=1`);
+      return await this.request(`/transactions?where[member][equals]=${userId}&depth=1&limit=100`);
     } catch (err) {
       // Member role is restricted from reading /transactions
       return { docs: [] };

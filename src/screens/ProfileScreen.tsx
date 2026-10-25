@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { FONTS, RADIUS, SPACING } from '../theme/theme';
 import { SUPPORT_EMAIL } from './LegalScreen';
 import { BlurTitleHeader, useBlurHeaderLayout } from '../components/Blur';
@@ -88,6 +89,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           { paddingTop: headerHeight + 24, paddingBottom: tabBarClearance + 16 },
         ]}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews
         refreshControl={
           <RefreshControl
             progressViewOffset={headerHeight}
@@ -120,6 +122,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         ) : (
           <>
             {/* User Profile Card */}
+            <Animated.View entering={FadeInDown.delay(40).duration(340).damping(24)}>
             <View
               style={[
                 styles.profileCard,
@@ -151,8 +154,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 iconSize={20}
               />
             </View>
+            </Animated.View>
 
             {/* Quick Stats Grid */}
+            <Animated.View entering={FadeInDown.delay(100).duration(340).damping(24)}>
             <View style={styles.statsRow}>
               <View
                 style={[
@@ -179,6 +184,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 <Text style={[styles.statLabel, { color: colors.textMuted }]}>CENTER PASSES</Text>
               </View>
             </View>
+            </Animated.View>
 
             {/* Transactions — single link row, full ledger lives on its own screen */}
             <View style={styles.sectionHeader}>

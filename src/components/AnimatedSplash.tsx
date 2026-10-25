@@ -1,11 +1,14 @@
-import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Animated,
-  StyleSheet,
-  Dimensions,
+import React, { useEffect } from 'react';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
   Easing,
-} from 'react-native';
+  runOnJS,
+  FadeOut,
+} from 'react-native-reanimated';
 import { FONTS } from '../../src/theme/theme';
 
 const { width } = Dimensions.get('window');
@@ -15,48 +18,47 @@ interface AnimatedSplashProps {
 }
 
 export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onFinish }) => {
-  // Marquee starts from 0 (left edge) and scrolls left continuously
-  const marqueeX = useRef(new Animated.Value(0)).current;
+  // Marquee runs on the UI thread — zero JS load during the most critical
+  // first-paint window.
+  const marqueeX = useSharedValue(0);
+  const opacity = useSharedValue(1);
 
-  // Screen fades out at the end
-  const screenOpacity = useRef(new Animated.Value(1)).current;
+  const marqueeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: marqueeX.value }],
+  }));
+  const screenStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
 
   useEffect(() => {
-    // Start marquee immediately — infinite loop, no delay
-    Animated.loop(
-      Animated.timing(marqueeX, {
-        toValue: -width,
-        duration: 3000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
+    marqueeX.value = withRepeat(
+      withTiming(-width, { duration: 2600, easing: Easing.linear }),
+      -1,
+      false
+    );
 
-    // After 2.5s, fade the whole splash out and hand off
     const timer = setTimeout(() => {
-      Animated.timing(screenOpacity, {
-        toValue: 0,
-        duration: 400,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }).start(() => onFinish());
-    }, 2500);
+      opacity.value = withTiming(
+        0,
+        { duration: 350, easing: Easing.in(Easing.cubic) },
+        (finished) => {
+          if (finished) runOnJS(onFinish)();
+        }
+      );
+    }, 2100);
 
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <Animated.View style={[styles.container, { opacity: screenOpacity }]}>
+    <Animated.View style={[styles.container, screenStyle]} exiting={FadeOut.duration(300)}>
       {/* ULTIM — fully visible from frame 1, no animation */}
       <Animated.Text style={styles.ultim}>ULTIM</Animated.Text>
 
-      {/* FOR ALL ribbon — fully visible from frame 1, marquee scrolls immediately */}
+      {/* FOR ALL ribbon — marquee scrolls on UI thread */}
       <View style={styles.ribbonWrapper}>
         <View style={styles.ribbon}>
-          {/* Duplicate text so the loop is seamless */}
-          <Animated.Text
-            style={[styles.ribbonText, { transform: [{ translateX: marqueeX }] }]}
-          >
+          <Animated.Text style={[styles.ribbonText, marqueeStyle]}>
             {'FOR ALL  ·  FOR ALL  ·  FOR ALL  ·  FOR ALL  ·  FOR ALL  ·  FOR ALL  ·  FOR ALL  ·  '}
           </Animated.Text>
         </View>
@@ -68,7 +70,7 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#050506',
+    backgroundColor: '#121212',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,

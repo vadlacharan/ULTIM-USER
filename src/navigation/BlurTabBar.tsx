@@ -1,17 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Animated,
-  Easing,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FONTS, RADIUS } from '../theme/theme';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { FONTS, MOTION, RADIUS } from '../theme/theme';
 import { useApp } from '../context/AppContext';
 import { GlassBlur, IS_EXPO_GO } from '../components/Blur';
 
@@ -39,71 +38,72 @@ const ICONS: Record<string, { active: any; inactive: any }> = {
 const INDICATOR_INSET_X = 7;
 const INDICATOR_INSET_Y = 6;
 
+const AnimatedPressableTab: React.FC<{
+  focused: boolean;
+  label: string;
+  icon: any;
+  color: string;
+  onPress: () => void;
+  onLongPress: () => void;
+}> = React.memo(({ focused, label, icon, color, onPress, onLongPress }) => {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Animated.View style={[styles.tab, animatedStyle]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={focused ? { selected: true } : {}}
+        accessibilityLabel={label}
+        onPressIn={() => {
+          scale.value = withTiming(0.88, { duration: MOTION.durationFast });
+        }}
+        onPressOut={() => {
+          scale.value = withSpring(1, MOTION.springSoft);
+        }}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        style={styles.tabInner}
+      >
+        <Ionicons name={icon} size={20} color={color} />
+        <Text style={[styles.labelText, { color }]} numberOfLines={1}>
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
 export const BlurTabBar: React.FC<BottomTabBarProps> = ({ state, navigation }) => {
   const { colors } = useApp();
   const bottomOffset = useTabBarBottomOffset();
   const [barWidth, setBarWidth] = useState(0);
 
-  const pressAnims = useRef<Record<string, Animated.Value>>({});
-  const slide = useRef(new Animated.Value(state.index)).current;
+  // UI-thread spring: indicator chases the active index without JS round-trips.
+  const progress = useSharedValue(state.index);
 
-  // Smooth slide with just a whisper of overshoot.
   useEffect(() => {
-    Animated.spring(slide, {
-      toValue: state.index,
-      stiffness: 260,
-      damping: 30,
-      mass: 1,
-      useNativeDriver: true,
-    }).start();
-  }, [state.index, slide]);
+    progress.value = withSpring(state.index, MOTION.springSoft);
+  }, [state.index]);
 
-  const getPress = (key: string) => {
-    if (!pressAnims.current[key]) {
-      pressAnims.current[key] = new Animated.Value(0);
-    }
-    return pressAnims.current[key];
-  };
-
-  const pressIn = (key: string) =>
-    Animated.timing(getPress(key), {
-      toValue: 1,
-      duration: 110,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-
-  const pressOut = (key: string) =>
-    Animated.timing(getPress(key), {
-      toValue: 0,
-      duration: 180,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-
-  const tabWidth = barWidth / state.routes.length;
+  const tabWidth = barWidth / Math.max(state.routes.length, 1);
   const indicatorWidth = Math.max(tabWidth - INDICATOR_INSET_X * 2, 0);
 
-  const indicatorTranslate = slide.interpolate({
-    inputRange: [0, Math.max(state.routes.length - 1, 1)],
-    outputRange: [0, Math.max(tabWidth * (state.routes.length - 1), 0)],
-    extrapolate: 'clamp',
-  });
+  const indicatorStyle = useAnimatedStyle(() => ({
+    width: indicatorWidth,
+    transform: [{ translateX: progress.value * tabWidth }],
+  }));
 
   return (
     <View pointerEvents="box-none" style={[styles.wrapper, { bottom: bottomOffset }]}>
       <View style={[styles.barShadow, { height: TAB_BAR_HEIGHT }]}>
         <View
-          style={[
-            styles.bar,
-            {
-              height: TAB_BAR_HEIGHT,
-              borderColor: 'rgba(255,255,255,0.12)',
-            },
-          ]}
+          style={[styles.bar, { borderColor: 'rgba(255,255,255,0.12)' }]}
           onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
         >
-          <GlassBlur style={StyleSheet.absoluteFill} blurAmount={30} />
+          <GlassBlur style={StyleSheet.absoluteFill} blurAmount={24} />
           <LinearGradient
             colors={
               IS_EXPO_GO
@@ -116,18 +116,9 @@ export const BlurTabBar: React.FC<BottomTabBarProps> = ({ state, navigation }) =
             pointerEvents="none"
           />
 
-          {/* Sliding active pill — behind the tabs, springs between slots */}
+          {/* Sliding active pill — UI-thread spring, no re-render per frame */}
           {barWidth > 0 && (
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.indicator,
-                {
-                  width: indicatorWidth,
-                  transform: [{ translateX: indicatorTranslate }],
-                },
-              ]}
-            />
+            <Animated.View pointerEvents="none" style={[styles.indicator, indicatorStyle]} />
           )}
 
           {state.routes.map((route, index) => {
@@ -152,42 +143,16 @@ export const BlurTabBar: React.FC<BottomTabBarProps> = ({ state, navigation }) =
               navigation.emit({ type: 'tabLongPress', target: route.key });
             };
 
-            const press = getPress(route.key);
-
             return (
-              <Animated.View
+              <AnimatedPressableTab
                 key={route.key}
-                style={[
-                  styles.tab,
-                  {
-                    transform: [
-                      {
-                        scale: press.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [1, 0.9],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityState={focused ? { selected: true } : {}}
-                  accessibilityLabel={label}
-                  activeOpacity={1}
-                  onPressIn={() => pressIn(route.key)}
-                  onPressOut={() => pressOut(route.key)}
-                  onPress={onPress}
-                  onLongPress={onLongPress}
-                  style={styles.tabInner}
-                >
-                  <Ionicons name={focused ? icons.active : icons.inactive} size={20} color={color} />
-                  <Text style={[styles.labelText, { color }]} numberOfLines={1}>
-                    {String(label)}
-                  </Text>
-                </TouchableOpacity>
-              </Animated.View>
+                focused={focused}
+                label={String(label)}
+                icon={focused ? icons.active : icons.inactive}
+                color={color}
+                onPress={onPress}
+                onLongPress={onLongPress}
+              />
             );
           })}
         </View>
@@ -205,8 +170,6 @@ const styles = StyleSheet.create({
   },
   barShadow: {
     borderRadius: RADIUS.full,
-    // Intentionally no drop shadow: on a transparent container iOS derives
-    // the shadow from each child's alpha, which makes the icons glow.
   },
   bar: {
     flexDirection: 'row',
@@ -231,6 +194,7 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1,
   },
   tabInner: {
     alignItems: 'center',

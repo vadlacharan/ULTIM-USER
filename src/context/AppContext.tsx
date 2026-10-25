@@ -79,6 +79,9 @@ interface AppContextType {
   cancelBooking: (bookingId: string) => Promise<{ success: boolean; error?: string }>;
   markNotificationAsRead: (id: string) => void;
   refreshData: () => Promise<void>;
+  /** Light post-booking/cancel refresh: passes + bookings only (2 requests,
+   *  parallel) instead of the full GPS + facilities + plans + user reload. */
+  refreshBookingsAndPasses: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -350,6 +353,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const refreshBookingsAndPasses = async () => {
+    if (!user?.id) return;
+    try {
+      const [memRes, bkRes] = await Promise.all([
+        api.getMyMemberships(user.id).catch(() => null),
+        api.getMyBookings(user.id).catch(() => null),
+      ]);
+      if (memRes?.docs && Array.isArray(memRes.docs)) {
+        setUserMemberships(memRes.docs.map(adaptMembership));
+      }
+      if (bkRes?.docs && Array.isArray(bkRes.docs)) {
+        setBookings(bkRes.docs.map(adaptBooking));
+      }
+      setIsOffline(false);
+    } catch (e: any) {
+      console.log('[AppContext] Pass/booking refresh error:', e?.message || e);
+      setIsOffline(true);
+    }
+  };
+
   const sendPhoneOtp = async (phone: string): Promise<{ success: boolean; error?: string }> => {
     try {
       setIsLoading(true);
@@ -536,18 +559,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     creditsSpent: number;
     facilityImage?: string;
   }) => {
-    const activeM = userMemberships.find((m) => String(m.facilityId) === String(facilityId) && m.status === 'ACTIVE')
-      || userMemberships.find((m) => m.status === 'ACTIVE')
-      || userMemberships[0];
-
-    if (!activeM) {
-      return { success: false, error: 'No active membership pass found for this center.' };
-    }
-
-    if (activeM.remainingCredits < creditsSpent) {
-      return { success: false, error: `Insufficient credits. Required: ${creditsSpent}, Available: ${activeM.remainingCredits}` };
-    }
-
     const now = new Date();
     const formattedDate = dateStr === 'Today'
       ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -556,6 +567,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       : dateStr === 'Day 3'
       ? (() => { const d = new Date(now); d.setDate(d.getDate() + 2); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })()
       : dateStr;
+
+    // Pick the pass that actually COVERS the session date — members often hold
+    // consecutive passes (this month + next month), and the next pass must not
+    // be chosen just because it isn't expired yet.
+    const coversDate = (m: UserMembership) =>
+      m.activatedDate !== 'N/A' &&
+      m.expiryDate !== 'N/A' &&
+      formattedDate >= m.activatedDate &&
+      formattedDate <= m.expiryDate;
+
+    const facilityPasses = userMemberships.filter(
+      (m) => String(m.facilityId) === String(facilityId),
+    );
+    const pool = facilityPasses.length > 0 ? facilityPasses : userMemberships;
+
+    const activeM =
+      pool.find((m) => coversDate(m) && m.status === 'ACTIVE') ||
+      pool.find((m) => coversDate(m)) ||
+      pool.find((m) => m.status === 'ACTIVE') ||
+      pool[0];
+
+    if (!activeM) {
+      return { success: false, error: 'No active membership pass found for this center.' };
+    }
+
+    if (activeM.remainingCredits < creditsSpent) {
+      return { success: false, error: `Insufficient credits. Required: ${creditsSpent}, Available: ${activeM.remainingCredits}` };
+    }
 
     try {
       const membershipId = isNaN(Number(activeM.id)) ? activeM.id : Number(activeM.id);
@@ -649,6 +688,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         cancelBooking,
         markNotificationAsRead,
         refreshData,
+        refreshBookingsAndPasses,
       }}
     >
       {children}

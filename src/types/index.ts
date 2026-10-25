@@ -78,6 +78,9 @@ export interface UserMembership {
   expiryDate: string;
   activatedDate: string;
   status: 'ACTIVE' | 'EXPIRED' | 'PENDING';
+  /** Outstanding balance on this pass (portal collects it at the desk). */
+  amountDue?: number;
+  amountPaid?: number;
   validActivities?: string[];
   timeSlots?: MembershipPlanTimeSlot[];
   tenant?: Facility;

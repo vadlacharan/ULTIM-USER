@@ -1,38 +1,29 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, GRADIENTS } from '../theme/theme';
+import { COLORS } from '../theme/theme';
 
 /**
- * The app-wide "Ember on Black" backdrop: a vertical near-black wash with a
- * warm ember glow bleeding in from the top-right and a faint one bottom-left.
- *
- * Deliberately built from plain LinearGradients (no SVG) — SVG radial
- * gradients get rasterized on every screen mount, which shows up as janky
- * page transitions on Android.
+ * The app-wide "Ember on Black" backdrop: near-black base with a single warm
+ * ember wash bleeding from the top. One gradient layer only — three stacked
+ * full-screen gradients were costing a full-screen overdraw on every frame
+ * while scrolling on Android.
  */
 const AppBackgroundComponent: React.FC = () => {
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <View style={styles.base} />
       <LinearGradient
-        colors={[...GRADIENTS.screen]}
-        locations={[0, 0.45, 1]}
+        colors={['#1E100A', '#121212', '#121212']}
+        locations={[0, 0.38, 1]}
         style={StyleSheet.absoluteFill}
       />
-      {/* Ember glow — top-right */}
+      {/* Ember glow — top anchor only */}
       <LinearGradient
-        colors={['rgba(255,90,31,0.28)', 'rgba(255,90,31,0.08)', 'rgba(255,90,31,0)']}
-        locations={[0, 0.45, 1]}
-        start={{ x: 1, y: 0 }}
-        end={{ x: 0.15, y: 0.85 }}
-        style={StyleSheet.absoluteFill}
-      />
-      {/* Faint ember wash — bottom-left */}
-      <LinearGradient
-        colors={['rgba(255,90,31,0.10)', 'rgba(255,90,31,0)']}
-        start={{ x: 0, y: 1 }}
-        end={{ x: 0.7, y: 0.3 }}
+        colors={['rgba(255,90,31,0.22)', 'rgba(255,90,31,0)']}
+        locations={[0, 1]}
+        start={{ x: 0.85, y: 0 }}
+        end={{ x: 0.15, y: 0.55 }}
         style={StyleSheet.absoluteFill}
       />
     </View>

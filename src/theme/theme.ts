@@ -1,35 +1,40 @@
 /**
  * ULTIM Design System — "Ember on Black"
  *
- * A single, theme-agnostic dark system inspired by Spotify's content-first
- * darkness: the UI recedes into near-black so facilities, passes, and credit
- * numbers glow. Depth is expressed through surface lightness + heavy shadows
- * (never raw gray borders), everything interactive is a pill, and the one and
- * only functional accent is vibrant ember orange.
+ * Spotify-inspired content-first darkness: the UI recedes into near-black
+ * (#121212 family) so facilities, passes and credit numbers glow. Depth is
+ * expressed through surface lightness + heavy shadows (never raw gray
+ * borders), everything interactive is a pill (500–9999px) or circle (50%),
+ * and the one functional accent is vibrant ember orange.
+ *
+ * Type: compact 10–24px range, bold/regular binary, uppercase + wide
+ * tracking (1.4–2px) for the systematic button/label voice.
  */
 
 // ─── Surfaces (Spotify-style lightness ladder) ───────────────────────────────
 export const COLORS = {
   // Backgrounds & surfaces — depth through shade variation
-  background: '#050506', // deepest layer (behind the screen gradient)
-  surface: '#0E0E10', // Level 0 screen wash
+  background: '#121212', // deepest layer (Spotify near-black)
+  surface: '#181818', // Level 0 screen wash / cards
   surfaceDim: '#0B0B0D',
   surfaceBright: '#232328',
-  surfaceLowest: '#0A0A0B',
-  surfaceLow: '#1F1F23', // chips, tracks, recessed controls
-  surfaceContainer: '#16161A', // cards
+  surfaceLowest: '#0A0B0D',
+  surfaceLow: '#1F1F1F', // chips, tracks, recessed controls (Spotify mid-dark)
+  surfaceContainer: '#181818', // cards
   surfaceHigh: '#26262B', // dividers, subtle borders
   surfaceHighest: '#303038',
 
   // Text & content — white + silver only
   onSurface: '#FFFFFF',
-  onSurfaceVariant: '#CBcbcb',
+  onSurfaceVariant: '#CBCBCB',
   onBackground: '#FFFFFF',
   textMuted: '#B3B3B3',
 
-  // Primary Accent — functional ember orange only
+  // Primary Accent — functional ember orange only (replaces Spotify green)
   primary: '#FF5A1F',
   primaryContainer: '#FF7A3D',
+  primaryMuted: 'rgba(255,90,31,0.16)',
+  primaryBorder: 'rgba(255,90,31,0.40)',
   onPrimary: '#0A0503', // near-black text ON orange (never white)
 
   // Secondary — warm amber/gold (member passes, credit moments & highlights)
@@ -129,14 +134,23 @@ export const SHADOWS = {
 };
 
 export const RADIUS = {
-  sm: 6,
-  default: 8,
+  sm: 6, // album-art / subtle containers
+  default: 8, // cards, sections (Spotify standard)
   md: 10,
   lg: 14,
   xl: 18,
-  card: 16,
-  full: 9999,
+  card: 8, // Spotify card radius — tight, not bubbly
+  full: 9999, // pills
+  pill: 500, // large primary buttons / search input
 };
+
+// ─── Motion (shared spring/duration tokens — 60fps UI thread) ───────────────
+export const MOTION = {
+  springSoft: { damping: 26, stiffness: 260, mass: 0.9 },
+  springSnappy: { damping: 30, stiffness: 340, mass: 0.85 },
+  durationFast: 140,
+  durationMed: 220,
+} as const;
 
 export const SPACING = {
   base: 4,

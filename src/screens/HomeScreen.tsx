@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  ImageBackground,
-  Image,
   Dimensions,
+  FlatList,
+  ListRenderItemInfo,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { Header, useHeaderLayout } from '../components/Header';
 import { useTabBarClearance } from '../navigation/BlurTabBar';
@@ -34,6 +37,8 @@ const RAIL_CARD_WIDTH = Math.round(Dimensions.get('window').width - 104);
 interface HomeScreenProps {
   navigation: any;
 }
+
+type CategoryCard = { label: CategoryType; title: string; image: any };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const {
@@ -57,70 +62,156 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [qrBooking, setQrBooking] = useState<Booking | null>(null);
   const [loadingQrId, setLoadingQrId] = useState<string | null>(null);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refreshData();
     setRefreshing(false);
-  };
+  }, [refreshData]);
 
   // Filter and sort facilities strictly by distance ascending (top 5 closest)
   const nearestFacilities = useMemo(() => {
-    let list = facilities.filter((f) => {
-      if (selectedCategory === 'All') return true;
-      const catA = (f.category || '').toLowerCase();
-      const catB = selectedCategory.toLowerCase();
-      if (catA.startsWith('sport') && catB.startsWith('sport')) return true;
-      return catA === catB;
+    const q = searchQuery.trim().toLowerCase();
+    const list = facilities.filter((f) => {
+      if (selectedCategory !== 'All') {
+        const catA = (f.category || '').toLowerCase();
+        const catB = selectedCategory.toLowerCase();
+        const catOk =
+          catA.startsWith('sport') && catB.startsWith('sport') ? true : catA === catB;
+        if (!catOk) return false;
+      }
+      if (q) {
+        return (
+          f.name.toLowerCase().includes(q) ||
+          (f.address || '').toLowerCase().includes(q) ||
+          (f.category || '').toLowerCase().includes(q)
+        );
+      }
+      return true;
     });
 
-    list = list.sort((a, b) => {
-      const distA = a.distanceKm !== undefined ? a.distanceKm : 999999;
-      const distB = b.distanceKm !== undefined ? b.distanceKm : 999999;
-      return distA - distB;
-    });
+    return [...list]
+      .sort((a, b) => (a.distanceKm ?? 999999) - (b.distanceKm ?? 999999))
+      .slice(0, 5);
+  }, [facilities, selectedCategory, searchQuery]);
 
-    return list.slice(0, 5);
-  }, [facilities, selectedCategory]);
-
-  const todayBookings = bookings.filter((b) => b.status === 'UPCOMING');
+  const todayBookings = useMemo(
+    () => bookings.filter((b) => b.status === 'UPCOMING'),
+    [bookings]
+  );
 
   // Open the check-in/check-out QR pass straight from the floating session bar.
-  const openBookingQr = async (booking: Booking) => {
-    const qrMode: 'CHECK_IN' | 'CHECK_OUT' = booking.successfulCheckedInTime
-      ? 'CHECK_OUT'
-      : 'CHECK_IN';
-    try {
-      setLoadingQrId(booking.id);
-      const res = await api.generateBookingQr(booking.id);
-      if (res?.token) {
-        setQrBooking({ ...booking, qrCodePayload: res.token, qrMode });
-        return;
+  const openBookingQr = useCallback(
+    async (booking: Booking) => {
+      const qrMode: 'CHECK_IN' | 'CHECK_OUT' = booking.successfulCheckedInTime
+        ? 'CHECK_OUT'
+        : 'CHECK_IN';
+      try {
+        setLoadingQrId(booking.id);
+        const res = await api.generateBookingQr(booking.id);
+        if (res?.token) {
+          setQrBooking({ ...booking, qrCodePayload: res.token, qrMode });
+          return;
+        }
+      } catch (e) {
+        console.log('[Home QR] Falling back to stored booking payload:', e);
+      } finally {
+        setLoadingQrId(null);
       }
-    } catch (e) {
-      console.log('[Home QR] Falling back to stored booking payload:', e);
-    } finally {
-      setLoadingQrId(null);
-    }
-    setQrBooking({ ...booking, qrMode });
-  };
+      setQrBooking({ ...booking, qrMode });
+    },
+    []
+  );
 
-  const categoryCards: { label: CategoryType; title: string; image: any }[] = [
-    {
-      label: 'Fitness',
-      title: 'FITNESS',
-      image: require('../../assets/fitness.png'),
+  const categoryCards: CategoryCard[] = useMemo(
+    () => [
+      { label: 'Fitness', title: 'FITNESS', image: require('../../assets/fitness.png') },
+      { label: 'Sports', title: 'SPORTS', image: require('../../assets/sports.png') },
+      { label: 'Health', title: 'HEALTH', image: require('../../assets/health2.png') },
+    ],
+    []
+  );
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const f of facilities) {
+      const cat = (f.category || '').toLowerCase();
+      for (const c of categoryCards) {
+        const key = c.label.toLowerCase();
+        if (cat === key || (key === 'sports' && cat.startsWith('sport'))) {
+          counts[c.label] = (counts[c.label] ?? 0) + 1;
+        }
+      }
+    }
+    return counts;
+  }, [facilities, categoryCards]);
+
+  const openFacility = useCallback(
+    (id: string) => navigation.navigate('FacilityDetail', { facilityId: id }),
+    [navigation]
+  );
+
+  const openCategory = useCallback(
+    (cat: CategoryCard) =>
+      navigation.navigate('CategoryFacilities', {
+        category: cat.label,
+        categoryTitle: cat.title,
+      }),
+    [navigation]
+  );
+
+  const renderRailItem = useCallback(
+    ({ item, index }: ListRenderItemInfo<Facility>) => (
+      <FacilityCard
+        facility={item}
+        width={RAIL_CARD_WIDTH}
+        index={index}
+        onPress={() => openFacility(item.id)}
+      />
+    ),
+    [openFacility]
+  );
+
+  const renderCategoryItem = useCallback(
+    ({ item: cat, index }: ListRenderItemInfo<CategoryCard>) => {
+      const isSelected = selectedCategory === cat.label;
+      const count = categoryCounts[cat.label] ?? 0;
+      return (
+        <Animated.View entering={FadeInDown.delay(90 + index * 60).duration(340).damping(24)}>
+          <TouchableOpacity
+            style={[styles.catCard, isSelected && styles.selectedCatCard]}
+            onPress={() => openCategory(cat)}
+            activeOpacity={0.88}
+          >
+            <Image
+              source={cat.image}
+              style={styles.catImage}
+              contentFit="cover"
+              transition={180}
+              cachePolicy="memory-disk"
+            />
+            <LinearGradient
+              colors={['rgba(8,8,10,0)', 'rgba(8,8,10,0.55)', 'rgba(8,8,10,0.92)']}
+              locations={[0.3, 0.65, 1]}
+              style={styles.catScrim}
+            />
+            <View style={styles.catTopRow}>
+              <View style={styles.catCountPill}>
+                <Text style={styles.catCountText}>{count}</Text>
+              </View>
+            </View>
+            <View style={styles.catContent}>
+              <Text style={styles.catTitle}>{cat.title}</Text>
+              <Text style={styles.catSub}>
+                {count === 1 ? '1 CENTER' : `${count} CENTERS`}
+              </Text>
+            </View>
+            {isSelected && <View style={styles.catSelectedRim} pointerEvents="none" />}
+          </TouchableOpacity>
+        </Animated.View>
+      );
     },
-    {
-      label: 'Sports',
-      title: 'SPORTS',
-      image: require('../../assets/sports.png'),
-    },
-    {
-      label: 'Health',
-      title: 'HEALTH',
-      image: require('../../assets/health2.png'),
-    },
-  ];
+    [selectedCategory, openCategory, categoryCounts]
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -128,9 +219,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + 26, paddingBottom: tabBarClearance + (todayBookings.length > 0 ? 88 : 16) },
+          {
+            paddingTop: headerHeight + 18,
+            paddingBottom: tabBarClearance + (todayBookings.length > 0 ? 88 : 16),
+          },
         ]}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews
         refreshControl={
           <RefreshControl
             progressViewOffset={headerHeight}
@@ -141,37 +236,58 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           />
         }
       >
-        {/* Search Bar */}
+        {/* ── SEARCH PILL (Spotify 500px radius) ── */}
+        <Animated.View entering={FadeIn.duration(300)}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={17} color={colors.textMuted} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="What do you want to train?"
+              placeholderTextColor={colors.textMuted}
+              style={[styles.searchInput, { color: colors.onSurface }]}
+              returnKeyType="search"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={12}>
+                <Ionicons name="close-circle" size={17} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </Animated.View>
 
-
-        {/* Offline Notice Banner */}
         {isOffline && (
           <NoticeBanner message="NO INTERNET: Showing saved cached data. Pull down to retry connection." />
         )}
 
-        {/* Auth / Credits Summary Banner */}
+        {/* ── CREDIT BANNER ── */}
         {isAuthenticated ? (
-          <TouchableOpacity
-            style={styles.creditSummaryBanner}
-            onPress={() => navigation.navigate('AccessTab')}
-            activeOpacity={0.85}
-          >
-            <View style={styles.creditIconBox}>
-              <CreditIcon size={28} />
-            </View>
-            <View style={styles.creditTextCol}>
-              <Text style={styles.creditTitle}>ACTIVE CREDITS</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                <Text style={[styles.creditVal, { color: colors.onSurface }]}>{totalActiveCredits}</Text>
-                <CreditIcon size={22} />
-              </View>
-            </View>
-            <GradientButton
-              label="BOOK NOW"
+          <Animated.View entering={FadeInDown.delay(60).duration(340).damping(24)}>
+            <TouchableOpacity
+              style={styles.creditSummaryBanner}
               onPress={() => navigation.navigate('AccessTab')}
-              compact
-            />
-          </TouchableOpacity>
+              activeOpacity={0.85}
+            >
+              <View style={styles.creditIconBox}>
+                <CreditIcon size={26} />
+              </View>
+              <View style={styles.creditTextCol}>
+                <Text style={styles.creditTitle}>ACTIVE CREDITS</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                  <Text style={[styles.creditVal, { color: colors.onSurface }]}>
+                    {totalActiveCredits}
+                  </Text>
+                  <CreditIcon size={20} />
+                </View>
+              </View>
+              <GradientButton
+                label="BOOK NOW"
+                onPress={() => navigation.navigate('AccessTab')}
+                compact
+              />
+            </TouchableOpacity>
+          </Animated.View>
         ) : (
           <TouchableOpacity
             style={[styles.authBanner, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
@@ -181,17 +297,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Ionicons name="person-circle" size={24} color={colors.secondary} />
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={[styles.authBannerTitle, { color: colors.onSurface }]}>Sign In to ULTIM</Text>
-              <Text style={[styles.authBannerSub, { color: colors.textMuted }]}>Access active membership passes & session bookings</Text>
+              <Text style={[styles.authBannerSub, { color: colors.textMuted }]}>
+                Access active membership passes & session bookings
+              </Text>
             </View>
-            <GradientButton
-              label="SIGN IN"
-              onPress={() => navigation.navigate('SignIn')}
-              compact
-            />
+            <GradientButton label="SIGN IN" onPress={() => navigation.navigate('SignIn')} compact />
           </TouchableOpacity>
         )}
 
-        {/* RICH VISUAL CATEGORY IMAGE CARDS */}
+        {/* ── CATEGORY CARDS ── */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>EXPLORE CATEGORIES</Text>
           {selectedCategory !== 'All' && (
@@ -201,43 +315,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           )}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryCardRow}>
-          {categoryCards.map((cat) => {
-            const isSelected = selectedCategory === cat.label;
-            return (
-              <TouchableOpacity
-                key={cat.label}
-                style={[styles.catCard, isSelected && styles.selectedCatCard]}
-                onPress={() => navigation.navigate('CategoryFacilities', { category: cat.label, categoryTitle: cat.title })}
-                activeOpacity={0.88}
-              >
-                <ImageBackground
-                  source={cat.image}
-                  style={styles.catImage}
-                  imageStyle={{ borderRadius: RADIUS.lg }}
-                  resizeMode="cover"
-                >
-                  <View style={[styles.catGradient, isSelected && styles.selectedCatGradient]} />
-                  <View style={styles.catContent}>
-                    <Text style={[styles.catTitle, isSelected && styles.selectedCatTitle]}>
-                      {cat.title}
-                    </Text>
-                  </View>
-                </ImageBackground>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <FlatList
+          data={categoryCards}
+          keyExtractor={(c) => c.label}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingRight: 4 }}
+          removeClippedSubviews
+          initialNumToRender={3}
+          windowSize={3}
+          renderItem={renderCategoryItem}
+        />
 
-        {/* Facilities Near Me - Top 5 Nearest (horizontal rail) */}
-        <View style={styles.sectionHeader}>
+        {/* ── NEAR YOU HEADER ── */}
+        <View style={[styles.sectionHeader, { marginTop: 20 }]}>
           <Text style={styles.sectionTitle}>
-            {selectedCategory === 'All' ? 'NEAR YOU' : `${selectedCategory.toUpperCase()} CENTERS`}
+            {selectedCategory === 'All'
+              ? searchQuery
+                ? 'RESULTS'
+                : 'NEAR YOU'
+              : `${selectedCategory.toUpperCase()} CENTERS`}
           </Text>
           <Text style={styles.countText}>{nearestFacilities.length} closest</Text>
         </View>
 
-        {/* Facility API Error / Loading / Empty States */}
         {facilityError ? (
           <View style={styles.errorCard}>
             <Ionicons name="alert-circle-outline" size={32} color={COLORS.error} />
@@ -258,25 +359,50 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Ionicons name="business-outline" size={40} color={colors.textMuted} />
             <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>No Facilities Available</Text>
             <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-              No sports or fitness centers found near your current location.
+              {searchQuery
+                ? `Nothing matches "${searchQuery}" nearby. Try another search.`
+                : 'No sports or fitness centers found near your current location.'}
             </Text>
           </View>
         ) : (
-          <ScrollView
+          <FlatList
+            data={nearestFacilities}
+            keyExtractor={(item) => item.id}
+            renderItem={renderRailItem}
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.facilitiesRail}
+            snapToInterval={RAIL_CARD_WIDTH + 14}
+            decelerationRate="fast"
+            snapToAlignment="start"
             contentContainerStyle={styles.railContent}
+            style={styles.facilitiesRail}
+            removeClippedSubviews
+            initialNumToRender={3}
+            maxToRenderPerBatch={3}
+            windowSize={3}
+            getItemLayout={(_, index) => ({
+              length: RAIL_CARD_WIDTH + 14,
+              offset: (RAIL_CARD_WIDTH + 14) * index,
+              index,
+            })}
+          />
+        )}
+
+        {nearestFacilities.length > 0 && (
+          <TouchableOpacity
+            style={styles.viewAllRow}
+            onPress={() =>
+              navigation.navigate('CategoryFacilities', {
+                category: selectedCategory,
+                categoryTitle:
+                  selectedCategory === 'All' ? 'All Centers' : selectedCategory.toUpperCase(),
+              })
+            }
+            activeOpacity={0.7}
           >
-            {nearestFacilities.map((facility: Facility) => (
-              <FacilityCard
-                key={facility.id}
-                facility={facility}
-                width={RAIL_CARD_WIDTH}
-                onPress={() => navigation.navigate('FacilityDetail', { facilityId: facility.id })}
-              />
-            ))}
-          </ScrollView>
+            <Text style={styles.viewAllText}>VIEW ALL CENTERS</Text>
+            <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
+          </TouchableOpacity>
         )}
       </ScrollView>
 
@@ -310,16 +436,32 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: SPACING.containerPadding,
-    paddingTop: 12,
-    paddingBottom: SPACING.xl,
-    gap: 0,
+  },
+  // ── Search pill (Spotify: 500px radius, icon-aware padding) ──
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#1F1F1F',
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: 16,
+    height: 48,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 16,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    paddingVertical: 0,
   },
   // ── Credit banner ──
   creditSummaryBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,90,31,0.06)',
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.default,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderWidth: 1,
@@ -329,11 +471,16 @@ const styles = StyleSheet.create({
   creditIconBox: {
     width: 40,
     height: 40,
-    borderRadius: RADIUS.full,
+    borderRadius: 20,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
   },
   creditTextCol: {
     flex: 1,
@@ -342,37 +489,33 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: FONTS.extraBold,
     color: COLORS.primary,
-    letterSpacing: 1.2,
+    letterSpacing: 1.6,
   },
   creditVal: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    color: COLORS.onSurface,
+    fontSize: 18,
+    fontFamily: FONTS.black,
+    letterSpacing: -0.4,
     marginTop: 1,
   },
   // ── Auth banner ──
   authBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: 14,
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
     marginBottom: 20,
   },
   authBannerTitle: {
     fontSize: 14,
     fontFamily: FONTS.bold,
-    color: COLORS.onSurface,
   },
   authBannerSub: {
     fontSize: 11,
     fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
     marginTop: 2,
   },
-  // ── Section headers ──
+  // ── Section headers (Spotify: 12px uppercase, silver, wide tracking) ──
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -383,61 +526,71 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: FONTS.extraBold,
     color: COLORS.textMuted,
-    letterSpacing: 1.5,
-  },
-  seeAllText: {
-    fontSize: 11,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-    letterSpacing: 0.5,
+    letterSpacing: 1.6,
   },
   resetCatText: {
     fontSize: 11,
     fontFamily: FONTS.bold,
     color: COLORS.primary,
+    letterSpacing: 0.8,
   },
   countText: {
     fontSize: 11,
     fontFamily: FONTS.medium,
     color: COLORS.textMuted,
   },
-  subText: {
-    fontSize: 11,
-    fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
   // ── Category cards ──
-  categoryCardRow: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
   catCard: {
     width: 148,
-    height: 197,
-    borderRadius: RADIUS.xl,
+    height: 190,
+    borderRadius: RADIUS.card,
     marginRight: 10,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    backgroundColor: '#1A1A1E',
   },
   selectedCatCard: {},
+  catSelectedRim: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    borderRadius: RADIUS.card,
+  },
   catImage: {
     width: '100%',
     height: '100%',
+  },
+  catScrim: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  catTopRow: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    right: 8,
+    flexDirection: 'row',
     justifyContent: 'flex-end',
   },
-  catGradient: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(5,5,6,0.26)',
+  catCountPill: {
+    minWidth: 26,
+    height: 26,
+    paddingHorizontal: 7,
+    borderRadius: 13,
+    backgroundColor: 'rgba(8,8,10,0.66)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  selectedCatGradient: {
-    backgroundColor: 'rgba(255,90,31,0.4)',
+  catCountText: {
+    fontSize: 11,
+    fontFamily: FONTS.extraBold,
+    color: '#FFFFFF',
   },
   catContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 12,
   },
   catTitle: {
@@ -449,20 +602,38 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
   },
-  selectedCatTitle: {
-    color: '#FFFFFF',
+  catSub: {
+    fontSize: 9.5,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.primary,
+    letterSpacing: 1.4,
+    marginTop: 3,
   },
-  // ── Facilities rail ──
+  // ── Facilities rail (peek next card) ──
   facilitiesRail: {
     marginTop: 2,
-    // Bleed the rail to the screen edges so the last card peeks out.
     marginHorizontal: -SPACING.containerPadding,
+    overflow: 'visible',
   },
   railContent: {
     paddingLeft: SPACING.containerPadding,
     paddingRight: SPACING.containerPadding,
+    paddingTop: 4,
   },
-
+  viewAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 12,
+    paddingVertical: 10,
+  },
+  viewAllText: {
+    fontSize: 11,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.primary,
+    letterSpacing: 1.4,
+  },
   // ── Error / Empty / Loading ──
   errorCard: {
     backgroundColor: COLORS.glass,
@@ -491,30 +662,22 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   emptyCard: {
-    backgroundColor: COLORS.glass,
     borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     alignItems: 'center',
     marginVertical: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
   },
   emptyTitle: {
-    color: COLORS.onSurface,
     fontSize: 16,
     fontFamily: FONTS.extraBold,
     marginTop: 8,
   },
   emptySub: {
-    color: COLORS.textMuted,
     fontSize: 12,
     fontFamily: FONTS.regular,
     textAlign: 'center',
     marginTop: 4,
     lineHeight: 18,
   },
-  // ── Unused search styles (kept for TS safety) ──
-  searchSection: { marginBottom: 0 },
-  searchBar: { flexDirection: 'row' },
-  searchInput: { flex: 1 },
 });

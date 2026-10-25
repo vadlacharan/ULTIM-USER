@@ -10,8 +10,10 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
-import { StatusBadge } from '../components/StatusBadge';
+import { Image } from 'expo-image';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../theme/theme';
 import { SwipeToBook } from '../components/SwipeToBook';
 import { CreditIcon } from '../components/CreditIcon';
 import { IconButton } from '../components/buttons';
@@ -27,13 +29,39 @@ interface BookingFlowScreenProps {
   navigation: any;
 }
 
+type SlotPeriod = 'MORNING' | 'AFTERNOON' | 'EVENING';
+
+const PERIOD_META: Record<
+  SlotPeriod,
+  { title: string; short: string; icon: 'sunny-outline' | 'partly-sunny-outline' | 'moon-outline' }
+> = {
+  MORNING: { title: 'MORNING', short: 'AM', icon: 'sunny-outline' },
+  AFTERNOON: { title: 'AFTERNOON', short: 'NOON', icon: 'partly-sunny-outline' },
+  EVENING: { title: 'EVENING', short: 'PM', icon: 'moon-outline' },
+};
+
+const slotPeriod = (rawTime?: string): SlotPeriod => {
+  const h = parseInt((rawTime || '06:00').split(':')[0], 10) || 0;
+  if (h < 12) return 'MORNING';
+  if (h < 17) return 'AFTERNOON';
+  return 'EVENING';
+};
+
+interface SlotItem {
+  id: string;
+  time: string;
+  rawTime: string;
+}
+
 export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, navigation }) => {
   const { facilityId } = route.params || {};
-  const { facilities, userMemberships, bookings, bookSession, refreshData, colors } = useApp();
+  const { facilities, userMemberships, bookings, bookSession, refreshBookingsAndPasses, colors } =
+    useApp();
   const insets = useSafeAreaInsets();
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [hideFull, setHideFull] = useState<boolean>(false);
 
-  // Dynamic Facility loader: Find in current facilities or fetch directly by ID
+  // Dynamic Facility loader
   const [facility, setFacility] = useState<Facility | null>(
     facilities.find((f) => String(f.id) === String(facilityId)) || null
   );
@@ -70,9 +98,16 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
   }, [facilityId, facilities]);
 
   // Active membership for this facility
-  const activeMembership = userMemberships.find(
-    (m) => String(m.facilityId) === String(facility?.id) && m.status === 'ACTIVE'
-  ) || userMemberships.find((m) => m.status === 'ACTIVE') || userMemberships[0];
+  const activeMembership =
+    userMemberships.find(
+      (m) => String(m.facilityId) === String(facility?.id) && m.status === 'ACTIVE'
+    ) ||
+    userMemberships.find((m) => m.status === 'ACTIVE') ||
+    userMemberships.find(
+      (m) => String(m.facilityId) === String(facility?.id) && m.status === 'PENDING'
+    ) ||
+    userMemberships.find((m) => m.status === 'PENDING') ||
+    userMemberships[0];
 
   // Parse activities available at this facility
   const availableActivities = useMemo(() => {
@@ -100,20 +135,22 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
         const creditsRate = act.creditsPer60Minutes || 100;
         const sportLabel = act.activity ? act.activity.toUpperCase() : 'SESSION';
 
-        const courtsList = act.courts && Array.isArray(act.courts) && act.courts.length > 0
-          ? act.courts.map((c) => ({ id: c.id, name: c.name.trim() }))
-          : [{ id: `floor-${actKey}`, name: `${sportLabel} Open Access` }];
+        const courtsList =
+          act.courts && Array.isArray(act.courts) && act.courts.length > 0
+            ? act.courts.map((c) => ({ id: c.id, name: c.name.trim() }))
+            : [{ id: `floor-${actKey}`, name: `${sportLabel} Open Access` }];
 
         list.push({
           activityKey: actKey,
           sportLabel,
           creditsPer60Mins: creditsRate,
           isIncludedInPlan: true,
-          capacityPerCourt: Number(act.capacityPerCourt) > 0
-            ? Number(act.capacityPerCourt)
-            : actKey === 'badminton'
-              ? 6
-              : 1,
+          capacityPerCourt:
+            Number(act.capacityPerCourt) > 0
+              ? Number(act.capacityPerCourt)
+              : actKey === 'badminton'
+                ? 6
+                : 1,
           courts: courtsList,
         });
       });
@@ -133,17 +170,16 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
     return list;
   }, [facility, activeMembership]);
 
-  // Selected Activity State
   const [selectedActivity, setSelectedActivity] = useState(availableActivities[0]);
 
   useEffect(() => {
     if (availableActivities.length > 0) {
-      const firstIncluded = availableActivities.find((a) => a.isIncludedInPlan) || availableActivities[0];
+      const firstIncluded =
+        availableActivities.find((a) => a.isIncludedInPlan) || availableActivities[0];
       setSelectedActivity(firstIncluded);
     }
   }, [availableActivities]);
 
-  // Selected Court for the chosen activity
   const [selectedCourt, setSelectedCourt] = useState(selectedActivity?.courts[0]);
 
   useEffect(() => {
@@ -160,11 +196,9 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
     const day3 = new Date(today);
     day3.setDate(today.getDate() + 2);
 
-    const formatDateSub = (d: Date) => {
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return `${d.getDate()} ${months[d.getMonth()]}`;
-    };
-
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const formatDateSub = (d: Date) => `${d.getDate()} ${months[d.getMonth()]}`;
     const toISODate = (d: Date) => {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -173,26 +207,40 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
     };
 
     return [
-      { label: 'Today', dayName: 'TODAY', dateSub: formatDateSub(today), isoDate: toISODate(today) },
-      { label: 'Tomorrow', dayName: 'TOMORROW', dateSub: formatDateSub(tomorrow), isoDate: toISODate(tomorrow) },
-      { label: 'Day 3', dayName: d3DayName(day3), dateSub: formatDateSub(day3), isoDate: toISODate(day3) },
+      {
+        label: 'Today',
+        dayName: 'TODAY',
+        weekday: days[today.getDay()].toUpperCase(),
+        dateSub: formatDateSub(today),
+        isoDate: toISODate(today),
+      },
+      {
+        label: 'Tomorrow',
+        dayName: 'TOMORROW',
+        weekday: days[tomorrow.getDay()].toUpperCase(),
+        dateSub: formatDateSub(tomorrow),
+        isoDate: toISODate(tomorrow),
+      },
+      {
+        label: 'Day 3',
+        dayName: days[day3.getDay()].toUpperCase(),
+        weekday: days[day3.getDay()].toUpperCase(),
+        dateSub: formatDateSub(day3),
+        isoDate: toISODate(day3),
+      },
     ];
   }, []);
-
-  function d3DayName(d: Date) {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return days[d.getDay()].toUpperCase();
-  }
 
   const [selectedDate, setSelectedDate] = useState<string>('Today');
   const [duration, setDuration] = useState<60 | 120>(60);
 
-  // Gym is a flat-rate session — no duration choice, always 1× the rate.
   const isGym = selectedActivity?.activityKey === 'gym';
   const effectiveDuration = isGym ? 60 : duration;
 
-  // ── Live court availability (public endpoint, per-court counts) ──
-  const [courtAvailability, setCourtAvailability] = useState<Record<string, Record<string, number>>>({});
+  // Live court availability
+  const [courtAvailability, setCourtAvailability] = useState<Record<string, Record<string, number>>>(
+    {}
+  );
   const [loadingAvailability, setLoadingAvailability] = useState(false);
 
   const selectedDateObj = dates.find((d) => d.label === selectedDate) || dates[0];
@@ -237,15 +285,18 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
     [selectedActivity, isCourtFullAt]
   );
 
-  // Dynamic Time Slots - ONLY Start Time (e.g. 05:00 AM)
-  const timeSlots = useMemo(() => {
-    if (activeMembership?.timeSlots && Array.isArray(activeMembership.timeSlots) && activeMembership.timeSlots.length > 0) {
+  // Time Slots
+  const timeSlots: SlotItem[] = useMemo(() => {
+    if (
+      activeMembership?.timeSlots &&
+      Array.isArray(activeMembership.timeSlots) &&
+      activeMembership.timeSlots.length > 0
+    ) {
       return activeMembership.timeSlots.map((ts, idx) => {
         const rawTime = ts.slotStartTime || '06:00';
         const hour = parseInt(rawTime.split(':')[0], 10) || 6;
         const ampm = hour >= 12 ? 'PM' : 'AM';
         const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-
         const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
         const label = `${pad(displayHour)}:00 ${ampm}`;
 
@@ -253,54 +304,103 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
           id: ts.id || `ts-${idx}`,
           time: label,
           rawTime,
-          isAvailable: true,
         };
       });
     }
 
     return [
-      { id: 's1', time: '05:00 AM', rawTime: '05:00', isAvailable: true },
-      { id: 's2', time: '06:00 AM', rawTime: '06:00', isAvailable: true },
-      { id: 's3', time: '07:00 AM', rawTime: '07:00', isAvailable: true },
-      { id: 's4', time: '08:00 AM', rawTime: '08:00', isAvailable: true },
-      { id: 's5', time: '05:00 PM', rawTime: '17:00', isAvailable: true },
-      { id: 's6', time: '06:00 PM', rawTime: '18:00', isAvailable: true },
+      { id: 's1', time: '05:00 AM', rawTime: '05:00' },
+      { id: 's2', time: '06:00 AM', rawTime: '06:00' },
+      { id: 's3', time: '07:00 AM', rawTime: '07:00' },
+      { id: 's4', time: '08:00 AM', rawTime: '08:00' },
+      { id: 's5', time: '05:00 PM', rawTime: '17:00' },
+      { id: 's6', time: '06:00 PM', rawTime: '18:00' },
     ];
   }, [activeMembership]);
 
-  const [selectedSlot, setSelectedSlot] = useState(timeSlots[0]);
+  const [selectedSlot, setSelectedSlot] = useState<SlotItem | undefined>(timeSlots[0]);
+  const [activePeriod, setActivePeriod] = useState<SlotPeriod>(() =>
+    slotPeriod(timeSlots[0]?.rawTime)
+  );
 
   useEffect(() => {
     if (timeSlots.length > 0) {
       setSelectedSlot(timeSlots[0]);
+      setActivePeriod(slotPeriod(timeSlots[0].rawTime));
     }
   }, [timeSlots]);
 
-  // Keep the selection valid as live availability / court changes roll in.
+  // Time-first auto-selection: keep chosen time, switch to a free court if needed
   useEffect(() => {
     if (!selectedSlot) return;
-    const currentFree =
-      !isCourtFullAt(selectedCourt?.name, selectedSlot.rawTime) &&
-      freeCourtsAt(selectedSlot.rawTime) > 0;
-    if (currentFree) return;
-    const next = timeSlots.find(
-      (slot) => !isCourtFullAt(selectedCourt?.name, slot.rawTime) && freeCourtsAt(slot.rawTime) > 0
-    );
-    if (next) setSelectedSlot(next);
-  }, [courtAvailability, selectedCourt, timeSlots, isCourtFullAt, freeCourtsAt, selectedSlot]);
+    const courts = selectedActivity?.courts || [];
+    if (!isCourtFullAt(selectedCourt?.name, selectedSlot.rawTime)) return;
+    const firstFree = courts.find((c) => !isCourtFullAt(c.name, selectedSlot.rawTime));
+    if (firstFree) {
+      if (firstFree.id !== selectedCourt?.id) setSelectedCourt(firstFree);
+      return;
+    }
+    const next = timeSlots.find((slot) => freeCourtsAt(slot.rawTime) > 0);
+    if (next && next.id !== selectedSlot.id) {
+      setSelectedSlot(next);
+      setActivePeriod(slotPeriod(next.rawTime));
+      const firstFreeNext = courts.find((c) => !isCourtFullAt(c.name, next.rawTime));
+      if (firstFreeNext) setSelectedCourt(firstFreeNext);
+    }
+  }, [
+    courtAvailability,
+    selectedCourt,
+    selectedSlot,
+    selectedActivity,
+    timeSlots,
+    isCourtFullAt,
+    freeCourtsAt,
+  ]);
+
+  const activeSlot: SlotItem = selectedSlot ?? timeSlots[0];
+
+  // Bucket slots by period for the tabbed Time Deck Card
+  const periodBuckets = useMemo(() => {
+    const buckets: Record<SlotPeriod, (SlotItem & { free: number; available: boolean })[]> = {
+      MORNING: [],
+      AFTERNOON: [],
+      EVENING: [],
+    };
+    for (const slot of timeSlots) {
+      const free = freeCourtsAt(slot.rawTime);
+      const available = free > 0;
+      if (hideFull && !available) continue;
+      buckets[slotPeriod(slot.rawTime)].push({ ...slot, free, available });
+    }
+    return buckets;
+  }, [timeSlots, freeCourtsAt, hideFull]);
+
+  const availablePeriods = useMemo(
+    () => (['MORNING', 'AFTERNOON', 'EVENING'] as SlotPeriod[]).filter((p) => periodBuckets[p].length > 0),
+    [periodBuckets]
+  );
+
+  // Ensure activePeriod always points to a non-empty period tab if possible
+  useEffect(() => {
+    if (periodBuckets[activePeriod]?.length === 0 && availablePeriods.length > 0) {
+      setActivePeriod(availablePeriods[0]);
+    }
+  }, [periodBuckets, activePeriod, availablePeriods]);
+
+  const currentPeriodSlots = periodBuckets[activePeriod] || [];
 
   // Check if user already booked this specific slot
   const isAlreadyBookedForSelectedSlot = useMemo(() => {
-    const selectedDateObj = dates.find((d) => d.label === selectedDate) || dates[0];
-    const targetISODate = selectedDateObj.isoDate;
+    const targetDate = dates.find((d) => d.label === selectedDate) || dates[0];
+    const targetISODateStr = targetDate.isoDate;
     const targetTime = selectedSlot?.rawTime || selectedSlot?.time;
 
-    // A booking's dateStr can be the literal string "Today" rather than an
-    // ISO date, so normalize it before comparing against the target date.
     const normalizeDateStr = (dateStr: string): string => {
       if (dateStr === 'Today') {
         const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+          d.getDate()
+        ).padStart(2, '0')}`;
       }
       return dateStr.split('T')[0];
     };
@@ -309,7 +409,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
       if (b.status === 'CANCELLED') return false;
       const bDate = b.dateStr ? normalizeDateStr(b.dateStr) : '';
       const bTime = b.timeSlotLabel ? b.timeSlotLabel.split(' ')[0] : '';
-      const isSameDate = bDate === targetISODate;
+      const isSameDate = bDate === targetISODateStr;
       const isSameTime = bTime === targetTime || b.timeSlotLabel === selectedSlot?.time;
       return isSameDate && isSameTime;
     });
@@ -320,17 +420,23 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
   const userCreditBalance = activeMembership ? activeMembership.remainingCredits : 0;
   const isBalanceSufficient = userCreditBalance >= requiredCredits;
   const isActivityIncluded = selectedActivity?.isIncludedInPlan !== false;
-  const isBookingAllowed = isBalanceSufficient && isActivityIncluded && !isAlreadyBookedForSelectedSlot && !isSubmitting;
+  const isSelectedCourtFull = isCourtFullAt(selectedCourt?.name, activeSlot?.rawTime);
+  const isBookingAllowed =
+    isBalanceSufficient &&
+    isActivityIncluded &&
+    !isAlreadyBookedForSelectedSlot &&
+    !isSelectedCourtFull &&
+    !isSubmitting;
 
-  // Surface the *actual* reason booking is blocked, instead of always
-  // showing "INSUFFICIENT CREDITS" regardless of the real cause.
   const bookingBlockedReason = isAlreadyBookedForSelectedSlot
     ? 'SLOT ALREADY BOOKED'
-    : !isActivityIncluded
-    ? 'ACTIVITY NOT INCLUDED'
-    : !isBalanceSufficient
-    ? 'INSUFFICIENT CREDITS'
-    : undefined;
+    : isSelectedCourtFull
+      ? 'SELECTED COURT IS FULL'
+      : !isActivityIncluded
+        ? 'ACTIVITY NOT INCLUDED'
+        : !isBalanceSufficient
+          ? 'INSUFFICIENT CREDITS'
+          : undefined;
 
   const handleConfirmSwipe = async () => {
     if (!facility) {
@@ -349,14 +455,14 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
     if (isAlreadyBookedForSelectedSlot) {
       Alert.alert(
         'Slot Already Booked',
-        `You already have an active booking for ${selectedSlot?.time} on ${selectedDate}. Please select another time slot or date.`
+        `You already have an active booking for ${activeSlot.time} on ${selectedDate}. Please select another time slot or date.`
       );
       return;
     }
 
     try {
       setIsSubmitting(true);
-      const selectedDateObj = dates.find((d) => d.label === selectedDate) || dates[0];
+      const dateObj = dates.find((d) => d.label === selectedDate) || dates[0];
 
       const res = await bookSession({
         facilityId: facility.id,
@@ -364,38 +470,42 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
         facilityAddress: facility.address,
         sportType: selectedActivity.activityKey,
         courtName: selectedCourt?.name || 'Main Floor',
-        dateStr: selectedDateObj.isoDate,
-        timeSlotLabel: selectedSlot?.rawTime || selectedSlot?.time,
+        dateStr: dateObj.isoDate,
+        timeSlotLabel: activeSlot.rawTime,
         durationMins: effectiveDuration,
         creditsSpent: requiredCredits,
         facilityImage: facility.imageUrl,
       });
 
-      await refreshData();
+      await refreshBookingsAndPasses();
 
       if (res.success) {
         Alert.alert(
           'Session Booked!',
-          `Your slot for ${selectedActivity.sportLabel} (${selectedCourt?.name}, ${selectedSlot.time}) is confirmed! Check your Bookings tab for entry QR code.`,
+          `Your slot for ${selectedActivity.sportLabel} (${selectedCourt?.name}, ${activeSlot.time}) is confirmed! Check your Bookings tab for entry QR code.`,
           [
             {
               text: 'VIEW BOOKING & QR',
-              onPress: () =>
-                navigation.navigate('MainTabs', { screen: 'BookingsTab' }),
+              onPress: () => navigation.navigate('MainTabs', { screen: 'BookingsTab' }),
             },
           ]
         );
       } else {
-        const isPlanError = res.error?.includes('membership plan') || res.error?.includes('not included');
+        const isPlanError =
+          res.error?.includes('membership plan') || res.error?.includes('not included');
         Alert.alert(
           isPlanError ? 'Activity Not Included' : 'Booking Rejected',
           isPlanError
-            ? `This activity (${selectedActivity?.sportLabel}) is not included in your active membership plan (${activeMembership?.planTitle || 'Current Plan'}). Please check your pass details or upgrade at reception.`
-            : (res.error || `Unable to book ${selectedActivity.sportLabel}. Check your membership active status or credit balance.`)
+            ? `This activity (${selectedActivity?.sportLabel}) is not included in your active membership plan (${activeMembership?.planTitle || 'Active Plan'}). Please check your pass details or upgrade at reception.`
+            : res.error ||
+                `Unable to book ${selectedActivity.sportLabel}. Check your membership active status or credit balance.`
         );
       }
     } catch (e: any) {
-      Alert.alert('Booking Error', e?.message || 'An unexpected error occurred while confirming booking.');
+      Alert.alert(
+        'Booking Error',
+        e?.message || 'An unexpected error occurred while confirming booking.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -403,7 +513,16 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
 
   if (loadingFacility && !facility) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 20), justifyContent: 'center' }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            paddingTop: Math.max(insets.top, 20),
+            justifyContent: 'center',
+          },
+        ]}
+      >
         <AppBackground />
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
@@ -412,437 +531,578 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
 
   if (!facility) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 20) }]}>
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 20) },
+        ]}
+      >
         <AppBackground />
-        <Text style={{ color: colors.onSurface, textAlign: 'center', marginTop: 40 }}>Facility not found.</Text>
+        <Text style={{ color: colors.onSurface, textAlign: 'center', marginTop: 40 }}>
+          Facility not found.
+        </Text>
       </View>
     );
   }
 
+  const thumbUri = facility.images?.[0] || facility.imageUrl || '';
+  const totalCourtsCount = (selectedActivity?.courts || []).length;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppBackground />
-      {/* Top Header with Safe Area Inset */}
-      <View
-        style={[
-          styles.topBar,
-          {
-            paddingTop: Math.max(insets.top, 12) + 6,
-            backgroundColor: 'rgba(10,10,14,0.88)',
-            borderBottomColor: 'rgba(255,255,255,0.08)',
-          },
-        ]}
-      >
+
+      {/* ── Top Bar ── */}
+      <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) + 4 }]}>
         <IconButton
           icon="arrow-back"
           size={38}
           iconSize={20}
-          iconColor={colors.onSurface}
-          backgroundColor={colors.glassHigh}
+          iconColor="#FFFFFF"
+          backgroundColor="#1F1F1F"
+          borderColor="rgba(255,255,255,0.08)"
           onPress={() => navigation.goBack()}
         />
-        <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>Reserve Session Slot</Text>
-        <View style={{ width: 40 }} />
+        <Text style={styles.topBarTitle}>BOOK A SESSION</Text>
+        <TouchableOpacity style={styles.liveChip} onPress={loadAvailability} activeOpacity={0.8}>
+          <View
+            style={[
+              styles.liveDot,
+              { backgroundColor: loadingAvailability ? COLORS.textMuted : COLORS.success },
+            ]}
+          />
+          <Text style={styles.liveText}>{loadingAvailability ? 'SYNC' : 'LIVE'}</Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Facility & Plan Summary Header */}
-        <View
-          style={[
-            styles.facilityHeaderCard,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-          ]}
-        >
-          <View style={styles.facilityMainRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.facilityName, { color: colors.onSurface }]}>{facility.name}</Text>
-              <Text style={[styles.facilityAddress, { color: colors.textMuted }]}>{facility.address}</Text>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 14) + 145 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── VENUE & PASS MEDIA BANNER (Archetype: Compact Solid #181818 Media Card) ── */}
+        <Animated.View entering={FadeInDown.delay(30).duration(320).damping(24)}>
+          <View style={styles.venueBannerCard}>
+            <View style={styles.venueTopRow}>
+              {thumbUri ? (
+                <Image
+                  source={{ uri: thumbUri }}
+                  style={styles.venueThumb}
+                  contentFit="cover"
+                  transition={160}
+                  cachePolicy="memory-disk"
+                />
+              ) : (
+                <View style={[styles.venueThumb, styles.venueThumbFallback]}>
+                  <Ionicons name="barbell-outline" size={22} color={COLORS.primary} />
+                </View>
+              )}
+
+              <View style={styles.venueMetaCol}>
+                <Text style={styles.venueName} numberOfLines={1}>
+                  {facility.name}
+                </Text>
+                <Text style={styles.venueAddr} numberOfLines={1}>
+                  {facility.address}
+                </Text>
+              </View>
+
+              <View style={styles.balanceBadge}>
+                <Text style={styles.balanceBadgeLabel}>BALANCE</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Text
+                    style={[
+                      styles.balanceBadgeVal,
+                      { color: isBalanceSufficient ? '#FFFFFF' : COLORS.error },
+                    ]}
+                  >
+                    {userCreditBalance}
+                  </Text>
+                  <CreditIcon size={15} />
+                </View>
+              </View>
             </View>
-            {facility.category && (
-              <View style={[styles.catBadge, { backgroundColor: colors.glassHigh, borderColor: colors.glassBorder }]}>
-                <Text style={[styles.catBadgeText, { color: colors.primary }]}>{facility.category.toUpperCase()}</Text>
+
+            {activeMembership && (
+              <View style={styles.passInlineBar}>
+                <View style={styles.passInlineLeft}>
+                  <Ionicons name="shield-checkmark" size={13} color={COLORS.secondary} />
+                  <Text style={styles.passInlineText} numberOfLines={1}>
+                    {activeMembership.planTitle}
+                  </Text>
+                </View>
+                <Text style={styles.passInlineExp}>EXP {activeMembership.expiryDate}</Text>
+              </View>
+            )}
+          </View>
+        </Animated.View>
+
+        {/* ── STEP 01: DATE (Archetype: Segmented Calendar Dock) ── */}
+        <Animated.View entering={FadeInDown.delay(70).duration(320).damping(24)}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.stepLabelRow}>
+              <View style={styles.stepPill}>
+                <Text style={styles.stepPillText}>01</Text>
+              </View>
+              <Text style={styles.sectionTitle}>CHOOSE DAY</Text>
+            </View>
+            <Text style={styles.sectionRightMeta}>3-DAY WINDOW</Text>
+          </View>
+
+          <View style={styles.dateDock}>
+            {dates.map((d) => {
+              const isSelected = selectedDate === d.label;
+              const [dayNum, mon] = d.dateSub.split(' ');
+              return (
+                <TouchableOpacity
+                  key={d.label}
+                  style={[styles.dateTile, isSelected && styles.dateTileActive]}
+                  onPress={() => setSelectedDate(d.label)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.dateDayTag, isSelected && styles.dateDayTagActive]}>
+                    {d.dayName}
+                  </Text>
+                  <Text style={[styles.dateNum, isSelected && styles.dateNumActive]}>{dayNum}</Text>
+                  <Text style={[styles.dateMon, isSelected && styles.dateMonActive]}>
+                    {(mon || '').toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Animated.View>
+
+        {/* ── STEP 02: SPORT & DURATION (Archetype: Horizontal Medallion Cards + Pill Switch) ── */}
+        <Animated.View entering={FadeInDown.delay(110).duration(320).damping(24)}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.stepLabelRow}>
+              <View style={styles.stepPill}>
+                <Text style={styles.stepPillText}>02</Text>
+              </View>
+              <Text style={styles.sectionTitle}>ACTIVITY & DURATION</Text>
+            </View>
+
+            {!isGym && (
+              <View style={styles.durationMiniSwitch}>
+                {([60, 120] as const).map((mins) => {
+                  const active = duration === mins;
+                  return (
+                    <TouchableOpacity
+                      key={mins}
+                      style={[styles.durationMiniPill, active && styles.durationMiniPillActive]}
+                      onPress={() => setDuration(mins)}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          styles.durationMiniText,
+                          active && styles.durationMiniTextActive,
+                        ]}
+                      >
+                        {mins === 60 ? '60M' : '120M'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
           </View>
 
-          {activeMembership && (
-            <View style={[styles.activePlanRow, { borderTopColor: 'rgba(255,255,255,0.10)' }]}>
-              <View style={styles.planPillLeft}>
-                <Ionicons name="shield-checkmark" size={14} color={colors.secondary} />
-                <Text style={[styles.activePlanTitle, { color: colors.onSurface }]}>
-                  {activeMembership.planTitle}
-                </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.sportScroll}
+          >
+            {availableActivities.map((act) => {
+              const isSelected = selectedActivity?.activityKey === act.activityKey;
+              return (
+                <TouchableOpacity
+                  key={act.activityKey}
+                  style={[styles.sportCard, isSelected && styles.sportCardActive]}
+                  onPress={() => setSelectedActivity(act)}
+                  activeOpacity={0.85}
+                >
+                  <View
+                    style={[
+                      styles.sportMedallion,
+                      isSelected && styles.sportMedallionActive,
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={getActivityIcon(act.activityKey || act.sportLabel)}
+                      size={18}
+                      color={isSelected ? COLORS.onPrimary : COLORS.secondary}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[styles.sportCardName, isSelected && { color: '#FFFFFF' }]}
+                      numberOfLines={1}
+                    >
+                      {act.sportLabel}
+                    </Text>
+                    <View style={styles.sportRateRow}>
+                      <Text
+                        style={[
+                          styles.sportRateNum,
+                          { color: isSelected ? COLORS.primary : COLORS.textMuted },
+                        ]}
+                      >
+                        {act.creditsPer60Mins}
+                      </Text>
+                      <CreditIcon size={12} />
+                      <Text style={styles.sportRateUnit}>/ HR</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </Animated.View>
+
+        {/* ── STEP 03: TIME SLOT (Archetype: Period-Tabbed 3-Column Time Deck Card) ── */}
+        <Animated.View entering={FadeInDown.delay(150).duration(320).damping(24)}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.stepLabelRow}>
+              <View style={styles.stepPill}>
+                <Text style={styles.stepPillText}>03</Text>
               </View>
-
+              <Text style={styles.sectionTitle}>PICK START TIME</Text>
             </View>
-          )}
-        </View>
 
-        {/* Date Selector */}
-        <View style={styles.stepHeaderRow}>
-          <Text style={[styles.stepTitle, { color: colors.onSurface }]}>SELECT DATE</Text>
-          <Text style={[styles.stepSubtitle, { color: colors.textMuted }]}>3-Day Window</Text>
-        </View>
-
-        <View style={styles.dateRow}>
-          {dates.map((d) => {
-            const isSelected = selectedDate === d.label;
-            return (
-              <TouchableOpacity
-                key={d.label}
-                style={[
-                  styles.dateChip,
-                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-                  isSelected && [styles.selectedDateChip, { backgroundColor: colors.primary, borderColor: colors.primary }],
-                ]}
-                onPress={() => setSelectedDate(d.label)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.dateChipName,
-                    { color: colors.textMuted },
-                    isSelected && styles.selectedDateText,
-                  ]}
-                >
-                  {d.dayName}
-                </Text>
-                <Text
-                  style={[
-                    styles.dateChipSub,
-                    { color: colors.textMuted },
-                    isSelected && styles.selectedDateSubText,
-                  ]}
-                >
-                  {d.dateSub}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Activity Selector */}
-        <View style={styles.stepHeaderRow}>
-          <Text style={[styles.stepTitle, { color: colors.onSurface }]}>SPORT / ACTIVITY</Text>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.zoneScroll} contentContainerStyle={{ paddingRight: 4 }}>
-          {availableActivities.map((act) => {
-            const isSelected = selectedActivity?.activityKey === act.activityKey;
-            return (
-              <TouchableOpacity
-                key={act.activityKey}
-                style={[
-                  styles.zoneChip,
-                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-                  isSelected && [styles.selectedZoneChip, { borderColor: colors.primary, backgroundColor: colors.glassHigh }],
-                  !act.isIncludedInPlan && styles.unsupportedZoneChip,
-                ]}
-                onPress={() => setSelectedActivity(act)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.zoneTopRow}>
-                  <MaterialCommunityIcons
-                    name={getActivityIcon(act.activityKey || act.sportLabel)}
-                    size={14}
-                    color={isSelected ? colors.primary : colors.secondary}
-                  />
-                  <Text
-                    style={[
-                      styles.zoneName,
-                      { color: colors.onSurface },
-                      isSelected && { color: colors.primary },
-                    ]}
-                  >
-                    {act.sportLabel}
-                  </Text>
-                </View>
-                <View style={styles.zoneRateRow}>
-                  <Text style={[styles.zoneRateVal, { color: isSelected ? colors.primary : colors.onSurface }]}>
-                    {act.creditsPer60Mins}
-                  </Text>
-                  <CreditIcon size={14} />
-                  <Text style={[styles.zoneRateSub, { color: colors.textMuted }]}>/ HOUR</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* Court / Floor Selector — live availability for the chosen slot */}
-        <View style={styles.stepHeaderRow}>
-          <Text style={[styles.stepTitle, { color: colors.onSurface }]}>COURT / FLOOR</Text>
-          <TouchableOpacity style={styles.liveChip} onPress={loadAvailability} activeOpacity={0.8}>
-            <View style={[styles.liveDot, { backgroundColor: loadingAvailability ? colors.textMuted : colors.success }]} />
-            <Text style={[styles.liveText, { color: colors.textMuted }]}>
-              {loadingAvailability ? 'SYNCING' : 'LIVE'}
-            </Text>
-            <Ionicons name="refresh" size={11} color={colors.textMuted} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.zoneScroll} contentContainerStyle={{ paddingRight: 4 }}>
-          {selectedActivity?.courts.map((court) => {
-            const isSelected = selectedCourt?.id === court.id;
-            const booked = bookedCountFor(court.name, selectedSlot?.rawTime);
-            const freeSpots = Math.max(0, courtCapacity - booked);
-            const isFull = freeSpots === 0;
-            return (
-              <TouchableOpacity
-                key={court.id}
-                style={[
-                  styles.courtChip,
-                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-                  isSelected && [styles.selectedCourtChip, { borderColor: colors.primary, backgroundColor: colors.glassHigh }],
-                ]}
-                onPress={() => setSelectedCourt(court)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name="navigate-circle-outline"
-                  size={16}
-                  color={isSelected ? colors.primary : colors.textMuted}
-                />
-                <Text
-                  style={[
-                    styles.courtName,
-                    { color: colors.onSurface },
-                    isSelected && { color: colors.primary },
-                  ]}
-                >
-                  {court.name}
-                </Text>
-                <View
-                  style={[
-                    styles.courtBadge,
-                    {
-                      backgroundColor: isFull ? 'rgba(243,114,127,0.14)' : COLORS.emberPanel,
-                      borderColor: isFull ? 'rgba(243,114,127,0.35)' : COLORS.emberBorder,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.courtBadgeText,
-                      { color: isFull ? COLORS.error : COLORS.secondary },
-                    ]}
-                  >
-                    {isFull ? 'FULL' : `${freeSpots} FREE`}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* Duration Selector — gym is flat-rate, so no duration choice there */}
-        {!isGym && (
-        <>
-        <View style={styles.stepHeaderRow}>
-          <Text style={[styles.stepTitle, { color: colors.onSurface }]}>SESSION DURATION</Text>
-        </View>
-
-        <View style={styles.durationRow}>
-          <TouchableOpacity
-            style={[
-              styles.durationBtn,
-              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-              duration === 60 && [styles.activeDurationBtn, { backgroundColor: colors.primary, borderColor: colors.primary }],
-            ]}
-            onPress={() => setDuration(60)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.durationTitle, { color: colors.textMuted }, duration === 60 && styles.activeDurationTitle]}>
-              60 MINS
-            </Text>
-            <Text style={[styles.durationSub, { color: colors.textMuted }, duration === 60 && styles.activeDurationSub]}>
-              Standard 1 Hr
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.durationBtn,
-              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-              duration === 120 && [styles.activeDurationBtn, { backgroundColor: colors.primary, borderColor: colors.primary }],
-            ]}
-            onPress={() => setDuration(120)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.durationTitle, { color: colors.textMuted }, duration === 120 && styles.activeDurationTitle]}>
-              120 MINS
-            </Text>
-            <Text style={[styles.durationSub, { color: colors.textMuted }, duration === 120 && styles.activeDurationSub]}>
-              Extended 2 Hrs (2x Credits)
-            </Text>
-          </TouchableOpacity>
-        </View>
-        </>
-        )}
-
-        {/* Time Slots */}
-        <View style={styles.stepHeaderRow}>
-          <Text style={[styles.stepTitle, { color: colors.onSurface }]}>AVAILABLE TIME SLOTS</Text>
-          <Text style={[styles.stepSubtitle, { color: colors.textMuted }]}>
-            {timeSlots.length} Slots
-          </Text>
-        </View>
-
-        <View style={styles.slotGrid}>
-          {timeSlots.map((slot) => {
-            const isSelected = selectedSlot?.id === slot.id;
-            const free = freeCourtsAt(slot.rawTime);
-            const courtFree = !isCourtFullAt(selectedCourt?.name, slot.rawTime);
-            const isAvailable = free > 0 && courtFree;
-            return (
-              <TouchableOpacity
-                key={slot.id}
-                style={[
-                  styles.slotChip,
-                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-                  isSelected && [styles.selectedSlotChip, { borderColor: colors.primary, backgroundColor: colors.glassHigh }],
-                  !isAvailable && [styles.disabledSlotChip, { backgroundColor: colors.glassHigh }],
-                ]}
-                onPress={() => isAvailable && setSelectedSlot(slot)}
-                disabled={!isAvailable}
-                activeOpacity={0.8}
-              >
-                <View style={styles.slotTimeRow}>
-                  <Ionicons
-                    name="time-outline"
-                    size={14}
-                    color={isSelected ? colors.primary : colors.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.slotTimeText,
-                      { color: colors.onSurface },
-                      isSelected && { color: colors.primary },
-                      !isAvailable && { color: colors.textMuted },
-                    ]}
-                  >
-                    {slot.time}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.slotStatusText,
-                    { color: !isAvailable ? COLORS.error : COLORS.secondary },
-                  ]}
-                >
-                  {free === 0 ? 'FULL' : courtFree ? `${free} FREE` : 'COURT BOOKED'}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Ticket-Style Summary Card */}
-        <View
-          style={[
-            styles.summaryCard,
-            { backgroundColor: colors.emberPanel, borderColor: colors.emberBorder },
-          ]}
-        >
-          <View style={styles.summaryHeader}>
-            <Text style={[styles.summaryTitle, { color: colors.onSurface }]}>BOOKING SUMMARY</Text>
-            <StatusBadge label={selectedActivity?.sportLabel || 'SESSION'} type="active" />
-          </View>
-
-          <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
-
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Date & Start Time</Text>
-            <Text style={[styles.summaryValue, { color: colors.onSurface }]}>
-              {selectedDate} • {selectedSlot?.time} ({effectiveDuration}m)
-            </Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Selected Court</Text>
-            <Text style={[styles.summaryValue, { color: colors.onSurface }]}>
-              {selectedCourt?.name || 'Main Court'}
-            </Text>
-          </View>
-
-          <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
-
-          {/* Credits Calculation */}
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Required Credits</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={[styles.creditsReqVal, { color: colors.onSurface }]}>{requiredCredits}</Text>
-              <CreditIcon size={18} />
-            </View>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Your Pass Balance</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <TouchableOpacity
+              style={[styles.hideFullBtn, hideFull && styles.hideFullBtnActive]}
+              onPress={() => setHideFull((v) => !v)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={hideFull ? 'checkmark-circle' : 'filter-outline'}
+                size={12}
+                color={hideFull ? COLORS.primary : COLORS.textMuted}
+              />
               <Text
                 style={[
-                  styles.creditsBalVal,
-                  { color: isBalanceSufficient ? colors.secondary : colors.error },
+                  styles.hideFullBtnText,
+                  { color: hideFull ? COLORS.primary : COLORS.textMuted },
                 ]}
               >
-                {userCreditBalance}
+                AVAILABLE ONLY
               </Text>
-              <CreditIcon size={18} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.timeDeckCard}>
+            {/* Period Tabs (Morning / Afternoon / Evening) */}
+            <View style={styles.periodTabBar}>
+              {(['MORNING', 'AFTERNOON', 'EVENING'] as SlotPeriod[]).map((period) => {
+                const count = periodBuckets[period]?.length || 0;
+                const isSelected = activePeriod === period;
+                return (
+                  <TouchableOpacity
+                    key={period}
+                    style={[
+                      styles.periodTab,
+                      isSelected && styles.periodTabActive,
+                      count === 0 && { opacity: 0.4 },
+                    ]}
+                    onPress={() => setActivePeriod(period)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons
+                      name={PERIOD_META[period].icon}
+                      size={13}
+                      color={isSelected ? COLORS.onPrimary : COLORS.textMuted}
+                    />
+                    <Text
+                      style={[
+                        styles.periodTabText,
+                        isSelected && styles.periodTabTextActive,
+                      ]}
+                    >
+                      {PERIOD_META[period].title}
+                    </Text>
+                    <View
+                      style={[
+                        styles.periodCountBadge,
+                        isSelected && styles.periodCountBadgeActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.periodCountText,
+                          isSelected && styles.periodCountTextActive,
+                        ]}
+                      >
+                        {count}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* 3-Column Compact Time Grid for the active period */}
+            {currentPeriodSlots.length === 0 ? (
+              <View style={styles.emptyPeriodBox}>
+                <Ionicons name="time-outline" size={24} color={COLORS.textMuted} />
+                <Text style={styles.emptyPeriodText}>
+                  No {PERIOD_META[activePeriod].title.toLowerCase()} slots available.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.timeGrid}>
+                {currentPeriodSlots.map((slot) => {
+                  const isSelected = activeSlot.id === slot.id;
+                  const statusLabel = !slot.available
+                    ? 'FULL'
+                    : isGym
+                      ? 'OPEN'
+                      : slot.free === 1
+                        ? '1 COURT'
+                        : `${slot.free} COURTS`;
+
+                  return (
+                    <TouchableOpacity
+                      key={slot.id}
+                      style={[
+                        styles.timeTile,
+                        isSelected && styles.timeTileSelected,
+                        !slot.available && styles.timeTileDisabled,
+                      ]}
+                      onPress={() => slot.available && setSelectedSlot(slot)}
+                      disabled={!slot.available}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          styles.timeTileClock,
+                          isSelected && styles.timeTileClockSelected,
+                          !slot.available && styles.timeTileClockDisabled,
+                        ]}
+                      >
+                        {slot.time}
+                      </Text>
+                      <View style={styles.timeTileSubRow}>
+                        <View
+                          style={[
+                            styles.timeTileDot,
+                            {
+                              backgroundColor: isSelected
+                                ? COLORS.onPrimary
+                                : !slot.available
+                                  ? COLORS.error
+                                  : slot.free <= 1 && totalCourtsCount > 1
+                                    ? COLORS.secondary
+                                    : COLORS.success,
+                            },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.timeTileSub,
+                            isSelected && styles.timeTileSubSelected,
+                            !slot.available && { color: COLORS.error },
+                          ]}
+                        >
+                          {statusLabel}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </Animated.View>
+
+        {/* ── STEP 04: COURT / FLOOR (Archetype: 2-Column Capacity Meter Cards) ── */}
+        <Animated.View entering={FadeInDown.delay(190).duration(320).damping(24)}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.stepLabelRow}>
+              <View style={styles.stepPill}>
+                <Text style={styles.stepPillText}>04</Text>
+              </View>
+              <Text style={styles.sectionTitle}>SELECT COURT / FLOOR</Text>
+            </View>
+
+            <View style={styles.atTimeBadge}>
+              <Ionicons name="time" size={11} color={COLORS.primary} />
+              <Text style={styles.atTimeBadgeText}>AT {activeSlot.time}</Text>
             </View>
           </View>
 
-          {!isActivityIncluded && (
-            <View style={[styles.warningBanner, { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
-              <Ionicons name="warning" size={16} color={colors.error} />
-              <Text style={[styles.warningText, { color: colors.error }]}>
-                {selectedActivity?.sportLabel} is not covered in your current plan ({activeMembership?.planTitle || 'Active Plan'}). Please upgrade at center reception desk.
-              </Text>
-            </View>
-          )}
+          <View style={styles.courtGrid}>
+            {(selectedActivity?.courts || []).map((court) => {
+              const isSelected = selectedCourt?.id === court.id;
+              const booked = bookedCountFor(court.name, activeSlot.rawTime);
+              const freeSpots = Math.max(0, courtCapacity - booked);
+              const isFull = freeSpots === 0;
+              const fillRatio =
+                courtCapacity > 0 ? Math.min(100, (freeSpots / courtCapacity) * 100) : 0;
+              const barColor = isFull
+                ? COLORS.error
+                : freeSpots <= Math.ceil(courtCapacity * 0.34)
+                  ? COLORS.secondary
+                  : COLORS.success;
 
-          {!isBalanceSufficient && isActivityIncluded && (
-            <View style={[styles.warningBanner, { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
-              <Ionicons name="alert-circle" size={16} color={colors.error} />
-              <Text style={[styles.warningText, { color: colors.error }]}>
-                Insufficient credit balance ({userCreditBalance} available vs {requiredCredits} required). Please visit reception desk to top up.
-              </Text>
+              return (
+                <TouchableOpacity
+                  key={court.id}
+                  style={[
+                    styles.courtTile,
+                    isSelected && styles.courtTileSelected,
+                    isFull && styles.courtTileFull,
+                  ]}
+                  onPress={() => !isFull && setSelectedCourt(court)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.courtTileTop}>
+                    <Text
+                      style={[
+                        styles.courtTileName,
+                        isSelected && { color: '#FFFFFF' },
+                        isFull && { color: COLORS.textMuted },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {court.name}
+                    </Text>
+                    <View
+                      style={[
+                        styles.courtRadio,
+                        isSelected && styles.courtRadioSelected,
+                      ]}
+                    >
+                      {isSelected && <View style={styles.courtRadioInner} />}
+                    </View>
+                  </View>
+
+                  <View style={styles.courtCapRow}>
+                    <Text style={[styles.courtCapText, { color: barColor }]}>
+                      {isFull
+                        ? 'FULLY BOOKED'
+                        : courtCapacity === 1
+                          ? 'AVAILABLE'
+                          : `${freeSpots} OF ${courtCapacity} SPOTS FREE`}
+                    </Text>
+                  </View>
+
+                  <View style={styles.courtMeterTrack}>
+                    <View
+                      style={[
+                        styles.courtMeterFill,
+                        { width: `${fillRatio}%`, backgroundColor: barColor },
+                      ]}
+                    />
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Animated.View>
+
+        {/* ── BOARDING-PASS SUMMARY TICKET (Archetype: Perforated Stub Ticket) ── */}
+        <Animated.View entering={FadeInDown.delay(230).duration(320).damping(24)}>
+          <View style={styles.ticketCard}>
+            <LinearGradient
+              colors={['#25150C', '#181515']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.ticketTopStub}
+            >
+              <View style={styles.ticketHeaderRow}>
+                <View>
+                  <Text style={styles.ticketPassLabel}>SESSION RESERVATION TICKET</Text>
+                  <Text style={styles.ticketSportTitle}>
+                    {selectedActivity?.sportLabel} · {selectedCourt?.name}
+                  </Text>
+                </View>
+                <View style={styles.ticketDurationBadge}>
+                  <Text style={styles.ticketDurationText}>{effectiveDuration} MIN</Text>
+                </View>
+              </View>
+
+              <View style={styles.ticketMetaGrid}>
+                <View style={styles.ticketMetaCell}>
+                  <Text style={styles.ticketMetaKey}>DATE</Text>
+                  <Text style={styles.ticketMetaVal}>{selectedDateObj.dateSub}</Text>
+                </View>
+                <View style={styles.ticketMetaDivider} />
+                <View style={styles.ticketMetaCell}>
+                  <Text style={styles.ticketMetaKey}>START TIME</Text>
+                  <Text style={styles.ticketMetaVal}>{activeSlot.time}</Text>
+                </View>
+                <View style={styles.ticketMetaDivider} />
+                <View style={styles.ticketMetaCell}>
+                  <Text style={styles.ticketMetaKey}>CREDITS</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                    <Text style={[styles.ticketMetaVal, { color: COLORS.primary, marginTop: 0 }]}>
+                      {requiredCredits}
+                    </Text>
+                    <CreditIcon size={14} />
+                  </View>
+                </View>
+              </View>
+            </LinearGradient>
+
+            {/* Perforation */}
+            <View style={styles.ticketPerforation}>
+              <View style={[styles.notch, styles.notchLeft]} />
+              <View style={styles.dashedLine} />
+              <View style={[styles.notch, styles.notchRight]} />
             </View>
-          )}
-        </View>
+
+            {/* Bottom Ledger */}
+            <View style={styles.ticketBottomStub}>
+              <View style={styles.ledgerRow}>
+                <Text style={styles.ledgerLabel}>Balance after booking</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text
+                    style={[
+                      styles.ledgerVal,
+                      {
+                        color: isBalanceSufficient ? COLORS.secondary : COLORS.error,
+                      },
+                    ]}
+                  >
+                    {Math.max(0, userCreditBalance - requiredCredits)}
+                  </Text>
+                  <CreditIcon size={15} />
+                </View>
+              </View>
+
+              {!isActivityIncluded && (
+                <View style={styles.warningBanner}>
+                  <Ionicons name="warning" size={15} color={COLORS.error} />
+                  <Text style={styles.warningText}>
+                    {selectedActivity?.sportLabel} is not covered in your current pass. Visit reception to upgrade.
+                  </Text>
+                </View>
+              )}
+
+              {!isBalanceSufficient && isActivityIncluded && (
+                <View style={styles.warningBanner}>
+                  <Ionicons name="alert-circle" size={15} color={COLORS.error} />
+                  <Text style={styles.warningText}>
+                    Insufficient credits ({userCreditBalance} available, {requiredCredits} required). Top up at reception.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </Animated.View>
       </ScrollView>
 
-      {/* Sticky Fixed Bottom Footer Container (Z-Axis / Floating Above Screen) */}
+      {/* ── Sticky Bottom Swipe Dock ── */}
       <View
         style={[
           styles.fixedFooter,
-          {
-            paddingBottom: Math.max(insets.bottom, 12),
-            backgroundColor: 'rgba(10,10,14,0.88)',
-            borderTopColor: 'rgba(255,255,255,0.10)',
-          },
+          { paddingBottom: Math.max(insets.bottom, 12) },
         ]}
       >
-        <View style={styles.fixedFooterSummary}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Text style={[styles.fixedCostLabel, { color: colors.textMuted }]}>Cost:</Text>
-            <Text style={[styles.fixedCostVal, { color: colors.onSurface }]}>{requiredCredits}</Text>
-            <CreditIcon size={16} />
-          </View>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Text style={[styles.fixedCostLabel, { color: colors.textMuted }]}>Balance:</Text>
-            <Text
-              style={[
-                styles.fixedCostVal,
-                { color: isBalanceSufficient ? colors.secondary : colors.error },
-              ]}
-            >
-              {userCreditBalance}
-            </Text>
-            <CreditIcon size={16} />
-          </View>
-        </View>
-
         <SwipeToBook
           onSwipeComplete={handleConfirmSwipe}
           disabled={!isBookingAllowed}
@@ -864,352 +1124,662 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.containerPadding,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
+    paddingBottom: 10,
   },
-
   topBarTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-  },
-  scrollContent: {
-    padding: SPACING.containerPadding,
-    paddingBottom: 170, // Extra bottom padding so scroll content doesn't get covered by fixed footer
-  },
-  facilityHeaderCard: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-  },
-  facilityMainRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  facilityName: {
-    fontSize: 18,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.2,
-    lineHeight: 22,
-  },
-  facilityAddress: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    marginTop: 4,
-    lineHeight: 17,
-  },
-  catBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    marginLeft: 8,
-  },
-  catBadgeText: {
-    fontSize: 10,
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.5,
-  },
-  activePlanRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-  },
-  planPillLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  activePlanTitle: {
-    fontSize: 13,
-    fontFamily: FONTS.bold,
-  },
-  planCreditsRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  balanceVal: {
-    fontSize: 15,
-    fontFamily: FONTS.extraBold,
-  },
-  balanceLabel: {
-    fontSize: 11,
-    fontFamily: FONTS.medium,
-    marginLeft: 2,
-  },
-  // Step headers
-  stepHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: SPACING.md,
-    marginBottom: SPACING.xs,
-  },
-  stepTitle: {
     fontSize: 12,
     fontFamily: FONTS.extraBold,
-    letterSpacing: 0.5,
+    color: COLORS.textMuted,
+    letterSpacing: 1.8,
   },
-  stepSubtitle: {
-    fontSize: 11,
-    fontFamily: FONTS.medium,
-  },
-  // Date selector
-  dateRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 4,
-  },
-  dateChip: {
-    flex: 1,
-    borderRadius: RADIUS.lg,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1.5,
-  },
-  selectedDateChip: {
-    elevation: 2,
-  },
-  dateChipName: {
-    fontSize: 12,
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.5,
-  },
-  dateChipSub: {
-    fontSize: 11,
-    fontFamily: FONTS.medium,
-    marginTop: 2,
-  },
-  selectedDateText: {
-    color: '#FFF',
-  },
-  selectedDateSubText: {
-    color: 'rgba(255, 255, 255, 0.85)',
-  },
-  // Scrollable chips (Activities / Courts)
-  zoneScroll: {
-    marginBottom: 4,
-  },
-  zoneChip: {
-    borderRadius: RADIUS.lg,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginRight: 8,
-    borderWidth: 1.5,
-    minWidth: 110,
-  },
-  selectedZoneChip: {},
-  unsupportedZoneChip: {
-    opacity: 0.5,
-  },
-  zoneTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  zoneName: {
-    fontSize: 13,
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.5,
-  },
-  zoneRateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 4,
-  },
-  zoneRateVal: {
-    fontSize: 14,
-    fontFamily: FONTS.extraBold,
-  },
-  zoneRateSub: {
-    fontSize: 11,
-    fontFamily: FONTS.medium,
-  },
-  courtChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: RADIUS.lg,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginRight: 8,
-    borderWidth: 1.5,
-  },
-  selectedCourtChip: {},
   liveChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    height: 32,
+    borderRadius: RADIUS.full,
+    backgroundColor: '#1F1F1F',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  liveText: {
+    fontSize: 9,
+    fontFamily: FONTS.extraBold,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: SPACING.containerPadding,
+    paddingTop: 4,
+  },
+
+  // ── Venue & Pass Banner Card ──
+  venueBannerCard: {
+    backgroundColor: '#181818',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    ...SHADOWS.card,
+  },
+  venueTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  venueThumb: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: '#252528',
+  },
+  venueThumbFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  venueMetaCol: {
+    flex: 1,
+  },
+  venueName: {
+    fontSize: 16,
+    fontFamily: FONTS.bold,
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+  },
+  venueAddr: {
+    fontSize: 11.5,
+    fontFamily: FONTS.regular,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  balanceBadge: {
+    backgroundColor: '#222226',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    alignItems: 'flex-end',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  balanceBadgeLabel: {
+    fontSize: 8,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.textMuted,
+    letterSpacing: 1.1,
+  },
+  balanceBadgeVal: {
+    fontSize: 16,
+    fontFamily: FONTS.black,
+    marginTop: 1,
+  },
+  passInlineBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 9,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  passInlineLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
+    flex: 1,
+  },
+  passInlineText: {
+    fontSize: 11.5,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.secondary,
+  },
+  passInlineExp: {
+    fontSize: 9.5,
+    fontFamily: FONTS.bold,
+    color: COLORS.textMuted,
+    letterSpacing: 0.8,
+  },
+
+  // ── Section Headers ──
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  stepLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepPill: {
+    backgroundColor: 'rgba(255,90,31,0.16)',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,90,31,0.45)',
+  },
+  stepPillText: {
+    fontSize: 9.5,
+    fontFamily: FONTS.black,
+    color: COLORS.primary,
+    letterSpacing: 0.6,
+  },
+  sectionTitle: {
+    fontSize: 11.5,
+    fontFamily: FONTS.extraBold,
+    color: '#FFFFFF',
+    letterSpacing: 1.3,
+  },
+  sectionRightMeta: {
+    fontSize: 9.5,
+    fontFamily: FONTS.bold,
+    color: COLORS.textMuted,
+    letterSpacing: 1,
+  },
+
+  // ── Step 01: Date Dock ──
+  dateDock: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#181818',
+    padding: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  dateTile: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  dateTileActive: {
+    backgroundColor: COLORS.primary,
+    ...SHADOWS.ember,
+  },
+  dateDayTag: {
+    fontSize: 9,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.textMuted,
+    letterSpacing: 1.1,
+  },
+  dateDayTagActive: {
+    color: 'rgba(10,5,3,0.75)',
+  },
+  dateNum: {
+    fontSize: 22,
+    fontFamily: FONTS.black,
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+    marginTop: 1,
+  },
+  dateNumActive: {
+    color: COLORS.onPrimary,
+  },
+  dateMon: {
+    fontSize: 9,
+    fontFamily: FONTS.bold,
+    color: COLORS.textMuted,
+    letterSpacing: 1.2,
+  },
+  dateMonActive: {
+    color: 'rgba(10,5,3,0.75)',
+  },
+
+  // ── Step 02: Sport & Duration ──
+  durationMiniSwitch: {
+    flexDirection: 'row',
+    backgroundColor: '#181818',
+    borderRadius: RADIUS.full,
+    padding: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  durationMiniPill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
-    backgroundColor: COLORS.glass,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.glassBorder,
   },
-  liveDot: {
+  durationMiniPillActive: {
+    backgroundColor: COLORS.primary,
+  },
+  durationMiniText: {
+    fontSize: 9.5,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.textMuted,
+    letterSpacing: 0.8,
+  },
+  durationMiniTextActive: {
+    color: COLORS.onPrimary,
+  },
+  sportScroll: {
+    gap: 10,
+    paddingRight: 4,
+  },
+  sportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#181818',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    minWidth: 148,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  sportCardActive: {
+    backgroundColor: '#24150E',
+    borderColor: COLORS.primary,
+  },
+  sportMedallion: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#252529',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sportMedallionActive: {
+    backgroundColor: COLORS.primary,
+  },
+  sportCardName: {
+    fontSize: 12.5,
+    fontFamily: FONTS.extraBold,
+    color: '#CBCBCB',
+    letterSpacing: 0.5,
+  },
+  sportRateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  sportRateNum: {
+    fontSize: 12,
+    fontFamily: FONTS.black,
+  },
+  sportRateUnit: {
+    fontSize: 9.5,
+    fontFamily: FONTS.bold,
+    color: COLORS.textMuted,
+  },
+
+  // ── Step 03: Time Deck Card (Period Tabs + 3-Col Grid) ──
+  hideFullBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    backgroundColor: '#181818',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  hideFullBtnActive: {
+    backgroundColor: 'rgba(255,90,31,0.14)',
+    borderColor: 'rgba(255,90,31,0.45)',
+  },
+  hideFullBtnText: {
+    fontSize: 8.5,
+    fontFamily: FONTS.extraBold,
+    letterSpacing: 0.9,
+  },
+  timeDeckCard: {
+    backgroundColor: '#181818',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  periodTabBar: {
+    flexDirection: 'row',
+    gap: 6,
+    backgroundColor: '#121214',
+    padding: 4,
+    borderRadius: 11,
+    marginBottom: 12,
+  },
+  periodTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  periodTabActive: {
+    backgroundColor: COLORS.primary,
+  },
+  periodTabText: {
+    fontSize: 9.5,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.textMuted,
+    letterSpacing: 0.7,
+  },
+  periodTabTextActive: {
+    color: COLORS.onPrimary,
+  },
+  periodCountBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  periodCountBadgeActive: {
+    backgroundColor: 'rgba(10,5,3,0.22)',
+  },
+  periodCountText: {
+    fontSize: 8.5,
+    fontFamily: FONTS.black,
+    color: COLORS.textMuted,
+  },
+  periodCountTextActive: {
+    color: COLORS.onPrimary,
+  },
+  timeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  timeTile: {
+    width: '31.4%',
+    backgroundColor: '#222226',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  timeTileSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+    ...SHADOWS.ember,
+  },
+  timeTileDisabled: {
+    opacity: 0.35,
+  },
+  timeTileClock: {
+    fontSize: 12.5,
+    fontFamily: FONTS.black,
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+  },
+  timeTileClockSelected: {
+    color: COLORS.onPrimary,
+  },
+  timeTileClockDisabled: {
+    color: COLORS.textMuted,
+  },
+  timeTileSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  timeTileDot: {
     width: 5,
     height: 5,
     borderRadius: 2.5,
   },
-  liveText: {
+  timeTileSub: {
     fontSize: 8.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.1,
-  },
-  courtBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: RADIUS.full,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  courtBadgeText: {
-    fontSize: 8,
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.8,
-  },
-  slotStatusText: {
-    fontSize: 8.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.8,
-    marginTop: 2,
-  },
-  courtName: {
-    fontSize: 13,
-    fontFamily: FONTS.bold,
-  },
-  // Duration selector
-  durationRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 4,
-  },
-  durationBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
-    borderWidth: 1.5,
-  },
-  activeDurationBtn: {},
-  durationTitle: {
-    fontSize: 14,
     fontFamily: FONTS.extraBold,
-    letterSpacing: 0.5,
+    color: COLORS.textMuted,
+    letterSpacing: 0.6,
   },
-  durationSub: {
-    fontSize: 11,
-    fontFamily: FONTS.medium,
-    marginTop: 2,
+  timeTileSubSelected: {
+    color: 'rgba(10,5,3,0.8)',
   },
-  activeDurationTitle: {
-    color: '#FFF',
-  },
-  activeDurationSub: {
-    color: 'rgba(255, 255, 255, 0.85)',
-  },
-  // Slot Grid
-  slotGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  slotChip: {
-    width: '48.5%',
-    borderRadius: RADIUS.lg,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    marginBottom: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-  },
-  selectedSlotChip: {},
-  disabledSlotChip: {
-    opacity: 0.45,
-  },
-  slotTimeRow: {
-    flexDirection: 'row',
+  emptyPeriodBox: {
+    paddingVertical: 22,
     alignItems: 'center',
     gap: 6,
   },
-  slotTimeText: {
-    fontSize: 12,
-    fontFamily: FONTS.bold,
-  },
-  bookedTag: {
-    fontSize: 9,
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.5,
-    marginTop: 2,
-  },
-  // Summary Ticket Box
-  summaryCard: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
-    marginTop: SPACING.md,
-    borderWidth: 1,
-  },
-  summaryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  summaryTitle: {
-    fontSize: 12,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 0.5,
-  },
-  summaryDivider: {
-    height: 1,
-    marginVertical: 10,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginVertical: 4,
-  },
-  summaryLabel: {
+  emptyPeriodText: {
     fontSize: 12,
     fontFamily: FONTS.medium,
+    color: COLORS.textMuted,
   },
-  summaryValue: {
-    fontSize: 12,
+
+  // ── Step 04: Court Grid ──
+  atTimeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,90,31,0.14)',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,90,31,0.45)',
+  },
+  atTimeBadgeText: {
+    fontSize: 9.5,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.primary,
+    letterSpacing: 0.8,
+  },
+  courtGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  courtTile: {
+    width: '48.3%',
+    backgroundColor: '#181818',
+    borderRadius: 13,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  courtTileSelected: {
+    backgroundColor: '#24150E',
+    borderColor: COLORS.primary,
+  },
+  courtTileFull: {
+    opacity: 0.45,
+  },
+  courtTileTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  courtTileName: {
+    flex: 1,
+    fontSize: 13.5,
     fontFamily: FONTS.bold,
+    color: '#CBCBCB',
   },
-  creditsReqVal: {
-    fontSize: 15,
-    fontFamily: FONTS.extraBold,
+  courtRadio: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  creditsBalVal: {
-    fontSize: 15,
+  courtRadioSelected: {
+    borderColor: COLORS.primary,
+  },
+  courtRadioInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+  },
+  courtCapRow: {
+    marginTop: 8,
+  },
+  courtCapText: {
+    fontSize: 9,
     fontFamily: FONTS.extraBold,
+    letterSpacing: 0.8,
+  },
+  courtMeterTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  courtMeterFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+
+  // ── Boarding-Pass Summary Ticket ──
+  ticketCard: {
+    marginTop: 22,
+    borderRadius: 16,
+    backgroundColor: '#181818',
+    borderWidth: 1,
+    borderColor: 'rgba(255,122,61,0.28)',
+    overflow: 'hidden',
+  },
+  ticketTopStub: {
+    padding: 16,
+  },
+  ticketHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  ticketPassLabel: {
+    fontSize: 8.5,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.secondary,
+    letterSpacing: 1.4,
+  },
+  ticketSportTitle: {
+    fontSize: 17,
+    fontFamily: FONTS.black,
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+    marginTop: 2,
+  },
+  ticketDurationBadge: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+  },
+  ticketDurationText: {
+    fontSize: 9.5,
+    fontFamily: FONTS.extraBold,
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
+  },
+  ticketMetaGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    backgroundColor: 'rgba(10,10,12,0.45)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  ticketMetaCell: {
+    flex: 1,
+  },
+  ticketMetaDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginHorizontal: 10,
+  },
+  ticketMetaKey: {
+    fontSize: 8,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.textMuted,
+    letterSpacing: 1.1,
+  },
+  ticketMetaVal: {
+    fontSize: 12.5,
+    fontFamily: FONTS.extraBold,
+    color: '#FFFFFF',
+    marginTop: 2,
+  },
+  ticketPerforation: {
+    position: 'relative',
+    justifyContent: 'center',
+    height: 16,
+    backgroundColor: '#161618',
+  },
+  dashedLine: {
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.14)',
+    marginHorizontal: 14,
+  },
+  notch: {
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.background,
+  },
+  notchLeft: {
+    left: -8,
+  },
+  notchRight: {
+    right: -8,
+  },
+  ticketBottomStub: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#151518',
+  },
+  ledgerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  ledgerLabel: {
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: COLORS.textMuted,
+  },
+  ledgerVal: {
+    fontSize: 15,
+    fontFamily: FONTS.black,
   },
   warningBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
     padding: 10,
-    borderRadius: RADIUS.md,
+    borderRadius: 10,
     borderWidth: 1,
     marginTop: 10,
+    backgroundColor: 'rgba(243,114,127,0.10)',
+    borderColor: 'rgba(243,114,127,0.30)',
   },
   warningText: {
     flex: 1,
     fontSize: 11,
     fontFamily: FONTS.medium,
+    color: COLORS.error,
     lineHeight: 16,
   },
-  // Fixed Footer (Z-Index / Floating)
+
+  // ── Fixed Footer ──
   fixedFooter: {
     position: 'absolute',
     left: 0,
@@ -1217,27 +1787,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: SPACING.containerPadding,
     paddingTop: 10,
+    backgroundColor: 'rgba(18,18,18,0.96)',
     borderTopWidth: 1,
-    elevation: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    borderTopColor: 'rgba(255,255,255,0.08)',
     zIndex: 100,
-  },
-  fixedFooterSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  fixedCostLabel: {
-    fontSize: 11,
-    fontFamily: FONTS.medium,
-  },
-  fixedCostVal: {
-    fontSize: 13,
-    fontFamily: FONTS.extraBold,
   },
 });
