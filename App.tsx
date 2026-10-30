@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -18,7 +18,10 @@ import {
 import { AppProvider, useApp } from './src/context/AppContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { AnimatedSplash } from './src/components/AnimatedSplash';
+import { ForceUpdateScreen, OptionalUpdateSheet } from './src/components/AppUpdateGate';
+import { useAppUpdate } from './src/hooks/useAppUpdate';
 import { COLORS } from './src/theme/theme';
+import type { AppUpdateDecision } from './src/services/appUpdates';
 
 // Keep native splash visible while JS bundle + fonts load
 SplashScreen.preventAutoHideAsync();
@@ -26,7 +29,17 @@ SplashScreen.preventAutoHideAsync();
 // Suspends inactive screens (paired with freezeOnBlur) to cut render jank.
 enableFreeze(true);
 
-function MainAppContent() {
+function MainAppContent({
+  updateDecision,
+  updateChecking,
+  onDismissUpdate,
+  onRetryUpdate,
+}: {
+  updateDecision: AppUpdateDecision | null;
+  updateChecking: boolean;
+  onDismissUpdate: () => void;
+  onRetryUpdate: () => void;
+}) {
   const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
   const [appReady, setAppReady] = useState(false);
   const { colors } = useApp();
@@ -53,7 +66,6 @@ function MainAppContent() {
   return (
     <View style={[styles.rootView, { backgroundColor: colors.background }]} onLayout={onLayout}>
       <NavigationContainer theme={navTheme}>
-        <StatusBar style="light" backgroundColor="transparent" translucent />
         <RootNavigator />
       </NavigationContainer>
 
@@ -61,7 +73,55 @@ function MainAppContent() {
       {showAnimatedSplash && (
         <AnimatedSplash onFinish={() => setShowAnimatedSplash(false)} />
       )}
+
+      {/* Optional update waits for the splash so the first frame stays clean */}
+      {!showAnimatedSplash && updateDecision && !updateDecision.forceUpdate && (
+        <OptionalUpdateSheet
+          decision={updateDecision}
+          checking={updateChecking}
+          onRetry={onRetryUpdate}
+          onDismiss={onDismissUpdate}
+        />
+      )}
     </View>
+  );
+}
+
+/**
+ * Boot gate: the release check runs before AppProvider (and therefore before
+ * GPS, facilities, plans and session hydration). A mandatory update never
+ * reaches the navigator; an optional one becomes a dismissible sheet.
+ */
+function AppBootstrap() {
+  const update = useAppUpdate();
+
+  useEffect(() => {
+    if (!update.initializing) {
+      SplashScreen.hideAsync().catch(() => { });
+    }
+  }, [update.initializing]);
+
+  if (update.initializing) return null;
+
+  if (update.decision?.forceUpdate) {
+    return (
+      <ForceUpdateScreen
+        decision={update.decision}
+        checking={update.checking}
+        onRetry={update.recheck}
+      />
+    );
+  }
+
+  return (
+    <AppProvider>
+      <MainAppContent
+        updateDecision={update.decision}
+        updateChecking={update.checking}
+        onDismissUpdate={update.dismiss}
+        onRetryUpdate={update.recheck}
+      />
+    </AppProvider>
   );
 }
 
@@ -81,9 +141,8 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <SafeAreaProvider>
-        <AppProvider>
-          <MainAppContent />
-        </AppProvider>
+        <StatusBar style="light" backgroundColor="transparent" translucent />
+        <AppBootstrap />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

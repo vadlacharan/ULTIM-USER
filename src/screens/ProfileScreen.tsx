@@ -267,6 +267,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
             <Text style={[styles.versionText, { color: 'rgba(255,255,255,0.30)' }]}>
               ULTIM v{Constants.expoConfig?.version ?? '1.0.0'}
+              {Constants.nativeBuildVersion ? ` (${Constants.nativeBuildVersion})` : ''}
             </Text>
 
             {/* Log Out Button */}
