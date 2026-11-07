@@ -12,6 +12,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS, RADIUS, SPACING } from '../theme/theme';
 import { useApp } from '../context/AppContext';
@@ -117,8 +118,8 @@ const OtpBoxes: React.FC<OtpBoxesProps> = ({ value, onChange, colors, disabled, 
               {isFilled ? (
                 <Text
                   style={{
-                    fontSize: 32,
-                    fontFamily: FONTS.black,
+                    fontSize: 34,
+                    fontFamily: FONTS.display,
                     color: colors.onSurface,
                     lineHeight: 38,
                   }}
@@ -337,7 +338,7 @@ export const AuthScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
           </TouchableOpacity>
 
           {/* Title */}
-          <Text style={{ fontSize: 30, fontFamily: FONTS.black, color: colors.onSurface, letterSpacing: -0.5, lineHeight: 36 }}>
+          <Text style={{ fontSize: 40, fontFamily: FONTS.display, color: colors.onSurface, letterSpacing: 0.5, lineHeight: 37, textTransform: 'uppercase' }}>
             Enter the code
           </Text>
           <Text style={{ fontSize: 15, fontFamily: FONTS.regular, color: colors.textMuted, marginTop: 10, lineHeight: 22 }}>
@@ -421,6 +422,7 @@ export const AuthScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <Animated.View entering={FadeInDown.duration(380).damping(24)}>
         {/* ── BRAND HERO ──────────────────────────────────────────────── */}
         {navigation?.canGoBack?.() && (
           <TouchableOpacity
@@ -439,9 +441,13 @@ export const AuthScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
               HYPER-LOCAL SPORTS &amp; FITNESS
             </Text>
           </View>
-          <Text style={[styles.brandWord, { color: colors.onSurface }]}>
-            ULTIM<Text style={{ color: colors.primary }}>.</Text>
-          </Text>
+          <View style={styles.brandLockup}>
+            <View style={styles.heroBars}>
+              <View style={styles.heroBar} />
+              <View style={[styles.heroBar, styles.heroBarShort]} />
+            </View>
+            <Text style={[styles.brandWord, { color: colors.onSurface }]}>ULTIM</Text>
+          </View>
           <Text style={[styles.brandTagline, { color: colors.textMuted }]}>
             One pass. Every court &amp; gym.
           </Text>
@@ -740,6 +746,7 @@ export const AuthScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
           <Text style={[styles.dividerText, { color: colors.textMuted }]}>ULTIM © 2026</Text>
           <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
         </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -767,8 +774,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    height: 46,
-    borderRadius: RADIUS.full,
+    height: 50,
+    borderRadius: 14,
     borderWidth: 1,
     marginTop: SPACING.sm,
   },
@@ -823,9 +830,30 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   badgeDot: { width: 6, height: 6, borderRadius: 3 },
-  badgeText: { fontSize: 10, fontFamily: FONTS.bold, letterSpacing: 0.5 },
-  brandWord: { fontSize: 54, fontFamily: FONTS.black, letterSpacing: 2, lineHeight: 60 },
-  brandTagline: { fontSize: 14, fontFamily: FONTS.regular, marginTop: 6, textAlign: 'center', lineHeight: 20 },
+  badgeText: { fontSize: 9.5, fontFamily: FONTS.extraBold, letterSpacing: 1.2 },
+  brandLockup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  heroBars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 52,
+  },
+  heroBar: {
+    width: 8,
+    height: 48,
+    backgroundColor: '#FF6A1A',
+    transform: [{ skewX: '-16deg' }],
+  },
+  heroBarShort: {
+    height: 32,
+    opacity: 0.72,
+  },
+  brandWord: { fontSize: 58, fontFamily: FONTS.display, letterSpacing: 3, lineHeight: 60, textTransform: 'uppercase' },
+  brandTagline: { fontSize: 14, fontFamily: FONTS.regular, marginTop: 10, textAlign: 'center', lineHeight: 21, color: '#AAA59D' },
   // ── Banners
   banner: {
     flexDirection: 'row',
@@ -843,25 +871,26 @@ const styles = StyleSheet.create({
   // ── Mode toggle
   modeRow: {
     flexDirection: 'row',
-    borderRadius: RADIUS.full,
+    borderRadius: 14,
     borderWidth: 1,
     padding: 4,
     marginBottom: 16,
+    backgroundColor: '#121417',
   },
   modeBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: RADIUS.full,
+    paddingVertical: 11,
+    borderRadius: 10,
     gap: 7,
   },
-  modeBtnLabel: { fontSize: 13, fontFamily: FONTS.semiBold, letterSpacing: 0.2 },
+  modeBtnLabel: { fontSize: 11, fontFamily: FONTS.extraBold, letterSpacing: 0.8, textTransform: 'uppercase' },
   // ── Card
-  card: { borderRadius: 20, borderWidth: 1, padding: 24, marginBottom: 20 },
-  cardTitle: { fontSize: 22, fontFamily: FONTS.bold, letterSpacing: -0.3, marginBottom: 6, lineHeight: 28 },
-  cardSub: { fontSize: 14, fontFamily: FONTS.regular, lineHeight: 20, marginBottom: 20 },
+  card: { borderRadius: 20, borderWidth: 1, padding: 22, marginBottom: 20, backgroundColor: '#121417' },
+  cardTitle: { fontSize: 30, fontFamily: FONTS.display, letterSpacing: 0.4, marginBottom: 6, lineHeight: 28, textTransform: 'uppercase' },
+  cardSub: { fontSize: 13, fontFamily: FONTS.regular, lineHeight: 19, marginBottom: 20, color: '#AAA59D' },
   // ── Welcome icon
   welcomeIcon: {
     width: 56,
@@ -876,9 +905,9 @@ const styles = StyleSheet.create({
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: RADIUS.md,
+    borderRadius: 14,
     paddingHorizontal: 14,
-    height: 52,
+    height: 56,
   },
   inputIcon: { marginRight: 10 },
   input: { flex: 1, fontSize: 15, height: '100%' },
@@ -895,7 +924,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
     marginBottom: -1,
   },
-  subTabText: { fontSize: 14, fontFamily: FONTS.semiBold },
+  subTabText: { fontSize: 11, fontFamily: FONTS.extraBold, letterSpacing: 0.8, textTransform: 'uppercase' },
   // ── Legal
   legalNote: { borderTopWidth: 1, marginTop: 20, paddingTop: 14 },
   legalText: { fontSize: 12, fontFamily: FONTS.regular, lineHeight: 18, textAlign: 'center' },

@@ -1,155 +1,152 @@
 /**
- * ULTIM Design System — "Ember on Black"
+ * ULTIM Design System — "Arena Night"
  *
- * Spotify-inspired content-first darkness: the UI recedes into near-black
- * (#121212 family) so facilities, passes and credit numbers glow. Depth is
- * expressed through surface lightness + heavy shadows (never raw gray
- * borders), everything interactive is a pill (500–9999px) or circle (50%),
- * and the one functional accent is vibrant ember orange.
+ * The visual language is lifted from the Sports-Arena design handoff:
+ * a single near-black stage (#0A0B0D), charcoal surfaces (#121417/#191B1F),
+ * hairline structural borders (#2B2D32), warm paper typography (#F6F2EA)
+ * and one functional arena orange (#FF6A1A).
  *
- * Type: compact 10–24px range, bold/regular binary, uppercase + wide
- * tracking (1.4–2px) for the systematic button/label voice.
+ * Typography is the identity: Barlow Condensed for oversized, tightly
+ * tracked uppercase display type; Manrope for all functional body copy.
+ * Corners are either gently rounded (10–22px) or fully pill-shaped.
  */
 
-// ─── Surfaces (Spotify-style lightness ladder) ───────────────────────────────
+// ─── Core tokens ─────────────────────────────────────────────────────────────
 export const COLORS = {
-  // Backgrounds & surfaces — depth through shade variation
-  background: '#121212', // deepest layer (Spotify near-black)
-  surface: '#181818', // Level 0 screen wash / cards
-  surfaceDim: '#0B0B0D',
-  surfaceBright: '#232328',
+  // Surfaces
+  background: '#0A0B0D',
+  night: '#0A0B0D',
+  surface: '#121417',
+  surfaceDim: '#0E0F11',
+  surfaceBright: '#191B1F',
   surfaceLowest: '#0A0B0D',
-  surfaceLow: '#1F1F1F', // chips, tracks, recessed controls (Spotify mid-dark)
-  surfaceContainer: '#181818', // cards
-  surfaceHigh: '#26262B', // dividers, subtle borders
-  surfaceHighest: '#303038',
+  surfaceLow: '#191B1F',
+  surfaceContainer: '#121417',
+  surfaceHigh: '#1E2025',
+  surfaceHighest: '#2B2D32',
 
-  // Text & content — white + silver only
-  onSurface: '#FFFFFF',
-  onSurfaceVariant: '#CBCBCB',
-  onBackground: '#FFFFFF',
-  textMuted: '#B3B3B3',
+  // Text
+  onSurface: '#F6F2EA',
+  onSurfaceVariant: '#D8D3CA',
+  onBackground: '#F6F2EA',
+  textMuted: '#AAA59D',
+  muted: '#AAA59D',
+  meta: '#8C8881',
+  paper: '#F6F2EA',
+  paperDim: '#D8D3CA',
 
-  // Primary Accent — functional ember orange only (replaces Spotify green)
-  primary: '#FF5A1F',
-  primaryContainer: '#FF7A3D',
-  primaryMuted: 'rgba(255,90,31,0.16)',
-  primaryBorder: 'rgba(255,90,31,0.40)',
-  onPrimary: '#0A0503', // near-black text ON orange (never white)
+  // Arena orange
+  primary: '#FF6A1A',
+  primaryHot: '#FF5100',
+  primaryContainer: '#FF8A50',
+  primaryMuted: 'rgba(255,106,26,0.12)',
+  primaryBorder: 'rgba(255,106,26,0.42)',
+  onPrimary: '#0A0B0D',
 
-  // Secondary — warm amber/gold (member passes, credit moments & highlights)
-  secondary: '#E9B54C',
-  secondaryContainer: 'rgba(233,181,76,0.12)',
-  onSecondary: '#1E1710',
+  // Supporting accents (status only — orange remains the brand accent)
+  secondary: '#FF8A50',
+  secondaryContainer: 'rgba(255,138,80,0.12)',
+  onSecondary: '#0A0B0D',
+  gold: '#FF8A50',
+  goldSoft: '#FFB27A',
+  goldDeep: '#FF6A1A',
+  goldPanel: 'rgba(255,106,26,0.12)',
+  goldBorder: 'rgba(255,106,26,0.38)',
+  ink: '#0A0B0D',
+  inkSoft: 'rgba(10,11,13,0.62)',
+  inkFaint: 'rgba(10,11,13,0.45)',
 
-  // Gold ramp — the secondary accent in three steps
-  gold: '#E9B54C',
-  goldSoft: '#F2C05F',
-  goldDeep: '#DD9F35',
-  goldPanel: 'rgba(233,181,76,0.12)',
-  goldBorder: 'rgba(233,181,76,0.28)',
-  /** Dark warm ink used on top of gold surfaces. */
-  ink: '#1E1710',
-  inkSoft: 'rgba(30,23,16,0.62)',
-  inkFaint: 'rgba(30,23,16,0.45)',
-
-  // Tertiary — soft orange (notice / warning territory)
-  tertiary: '#FF8A50',
-  tertiaryContainer: '#2A1508',
-  onTertiary: '#0A0503',
+  tertiary: '#FFD2A8',
+  tertiaryContainer: '#17110D',
+  onTertiary: '#0A0B0D',
 
   // Utility & status
   error: '#F3727F',
   errorContainer: '#2B1214',
-  success: '#34D399',
-  successContainer: '#0B241B',
-  info: '#539DF5',
-  outline: '#4D4D4D',
-  outlineVariant: '#2A2A2E',
-  border: 'rgba(255,255,255,0.08)',
+  success: '#7BD99A',
+  successContainer: 'rgba(123,217,154,0.10)',
+  info: '#7AA7FF',
+  outline: '#2B2D32',
+  outlineVariant: '#202227',
+  border: '#2B2D32',
+  line: '#2B2D32',
+  lineSoft: '#202227',
 
-  // Glass surfaces — used for empty/fallback/hero-less blocks so they read as
-  // frosted panels on the ember gradient instead of flat grey cards.
-  glass: 'rgba(255,255,255,0.045)',
-  glassHigh: 'rgba(255,255,255,0.075)',
-  glassBorder: 'rgba(255,255,255,0.10)',
+  // Flat surface aliases (legacy components inherit the arena palette)
+  glass: '#121417',
+  glassHigh: '#191B1F',
+  glassBorder: '#2B2D32',
+  emberPanel: '#17110D',
+  emberBorder: 'rgba(255,106,26,0.42)',
 
-  // Ember-tinted panels — for credit/membership moments that should glow warm.
-  emberPanel: 'rgba(255,90,31,0.06)',
-  emberBorder: 'rgba(255,90,31,0.18)',
-
-  // Card hero overlays
+  // Imagery overlays
   cardOverlayGradientStart: 'transparent',
-  cardOverlayGradientEnd: 'rgba(5, 5, 6, 0.96)',
+  cardOverlayGradientEnd: 'rgba(10,11,13,0.94)',
 };
 
-// ─── Screen gradients ────────────────────────────────────────────────────────
+// ─── Gradients ───────────────────────────────────────────────────────────────
+// The reference design is intentionally flat; gradients are reserved for image
+// legibility scrims. CTA gradients resolve to a solid arena orange.
 export const GRADIENTS = {
-  /** Full-screen wash: warm ember glow up top dissolving into pure black. */
-  screen: ['#1A0E07', '#0B0B0D', '#050506'] as const,
-  /** Ember radial glow color (top-right anchor). */
-  ember: '#FF5A1F',
-  /** Primary CTA gradient. */
-  primaryButton: ['#FF7A3D', '#FF4D12'] as const,
-  dangerButton: ['#F3727F', '#DC2626'] as const,
-  darkButton: ['#2C2C31', '#141417'] as const,
-  successButton: ['#34D399', '#059669'] as const,
+  screen: ['#0A0B0D', '#0A0B0D', '#0A0B0D'] as const,
+  ember: '#FF6A1A',
+  primaryButton: ['#FF6A1A', '#FF6A1A'] as const,
+  dangerButton: ['#F3727F', '#F3727F'] as const,
+  darkButton: ['#191B1F', '#191B1F'] as const,
+  successButton: ['#7BD99A', '#7BD99A'] as const,
 };
 
 // ─── Shadows ─────────────────────────────────────────────────────────────────
-// Spotify keeps shadows heavy because light shadows are invisible on black.
 export const SHADOWS = {
-  /** Cards: soft lift. */
   card: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.32,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  /** Floating elements (tab bar, sheets): dramatic float. */
   float: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
-    elevation: 16,
+    shadowOpacity: 0.42,
+    shadowRadius: 22,
+    elevation: 14,
   },
-  /** Orange glow for primary CTAs / active states. */
   ember: {
-    shadowColor: '#FF5A1F',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowColor: '#FF6A1A',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  /** Warm amber glow for the member pass cards. */
   gold: {
-    shadowColor: '#E9B54C',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.30,
-    shadowRadius: 18,
-    elevation: 8,
+    shadowColor: '#FF6A1A',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 5,
   },
 };
 
 export const RADIUS = {
-  sm: 6, // album-art / subtle containers
-  default: 8, // cards, sections (Spotify standard)
-  md: 10,
-  lg: 14,
-  xl: 18,
-  card: 8, // Spotify card radius — tight, not bubbly
-  full: 9999, // pills
-  pill: 500, // large primary buttons / search input
+  sm: 10,
+  default: 14,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  card: 16,
+  panel: 22,
+  full: 9999,
+  pill: 9999,
 };
 
-// ─── Motion (shared spring/duration tokens — 60fps UI thread) ───────────────
+// ─── Motion ──────────────────────────────────────────────────────────────────
 export const MOTION = {
-  springSoft: { damping: 26, stiffness: 260, mass: 0.9 },
-  springSnappy: { damping: 30, stiffness: 340, mass: 0.85 },
-  durationFast: 140,
-  durationMed: 220,
+  springSoft: { damping: 24, stiffness: 220, mass: 0.9 },
+  springSnappy: { damping: 28, stiffness: 320, mass: 0.8 },
+  durationFast: 160,
+  durationMed: 240,
+  durationSlow: 340,
 } as const;
 
 export const SPACING = {
@@ -160,36 +157,64 @@ export const SPACING = {
   lg: 32,
   xl: 48,
   containerPadding: 20,
-  cardGap: 16,
+  cardGap: 12,
 };
 
-/**
- * Font families — Public Sans (loaded via @expo-google-fonts/public-sans in
- * App.tsx). Plays the role of SpotifyMixUI: compact, functional, binary
- * weight hierarchy (bold vs regular) rather than size inflation.
- */
+// ─── Fonts ───────────────────────────────────────────────────────────────────
+// Barlow Condensed = display voice. Manrope = functional voice.
 export const FONTS = {
-  regular: 'PublicSans_400Regular',
-  medium: 'PublicSans_500Medium',
-  semiBold: 'PublicSans_600SemiBold',
-  bold: 'PublicSans_700Bold',
-  extraBold: 'PublicSans_800ExtraBold',
-  black: 'PublicSans_900Black',
+  // Barlow Condensed
+  display: 'BarlowCondensed_600SemiBold',
+  displayMedium: 'BarlowCondensed_500Medium',
+  displayBold: 'BarlowCondensed_700Bold',
+  // Manrope
+  regular: 'Manrope_400Regular',
+  medium: 'Manrope_500Medium',
+  semiBold: 'Manrope_600SemiBold',
+  bold: 'Manrope_700Bold',
+  extraBold: 'Manrope_800ExtraBold',
+  black: 'Manrope_800ExtraBold',
 };
 
-/**
- * Typography scale — compact (10–26px), bold/regular binary contrast,
- * uppercase + wide tracking for the systematic button/label voice.
- */
+// ─── Typography scale ────────────────────────────────────────────────────────
 export const TYPOGRAPHY = {
-  display: {
-    fontFamily: FONTS.black,
-    fontSize: 34,
-    lineHeight: 40,
-    letterSpacing: -0.8,
+  hero: {
+    fontFamily: FONTS.display,
+    fontSize: 52,
+    lineHeight: 47,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
+  },
+  pageTitle: {
+    fontFamily: FONTS.display,
+    fontSize: 42,
+    lineHeight: 38,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase' as const,
+  },
+  sectionTitle: {
+    fontFamily: FONTS.display,
+    fontSize: 30,
+    lineHeight: 29,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
+  },
+  cardTitle: {
+    fontFamily: FONTS.display,
+    fontSize: 24,
+    lineHeight: 24,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase' as const,
+  },
+  eyebrow: {
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase' as const,
   },
   h1: {
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.extraBold,
     fontSize: 24,
     lineHeight: 30,
     letterSpacing: -0.5,
@@ -207,16 +232,16 @@ export const TYPOGRAPHY = {
     letterSpacing: -0.2,
   },
   label: {
-    fontFamily: FONTS.bold,
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 1.2,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 1.1,
     textTransform: 'uppercase' as const,
   },
   body: {
     fontFamily: FONTS.regular,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
   },
   bodyStrong: {
     fontFamily: FONTS.bold,
@@ -226,19 +251,19 @@ export const TYPOGRAPHY = {
   caption: {
     fontFamily: FONTS.regular,
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   button: {
-    fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontFamily: FONTS.extraBold,
+    fontSize: 12,
     lineHeight: 15,
-    letterSpacing: 1.6,
+    letterSpacing: 0.5,
     textTransform: 'uppercase' as const,
   },
   number: {
-    fontFamily: FONTS.black,
-    fontSize: 30,
-    lineHeight: 34,
-    letterSpacing: -0.5,
+    fontFamily: FONTS.display,
+    fontSize: 32,
+    lineHeight: 32,
+    letterSpacing: 0.3,
   },
 };

@@ -53,7 +53,13 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onFinish }) => {
   return (
     <Animated.View style={[styles.container, screenStyle]} exiting={FadeOut.duration(300)}>
       {/* ULTIM — fully visible from frame 1, no animation */}
-      <Animated.Text style={styles.ultim}>ULTIM</Animated.Text>
+      <View style={styles.logoRow}>
+        <View style={styles.bars}>
+          <View style={styles.bar} />
+          <View style={[styles.bar, styles.barShort]} />
+        </View>
+        <Animated.Text style={styles.ultim}>ULTIM</Animated.Text>
+      </View>
 
       {/* FOR ALL ribbon — marquee scrolls on UI thread */}
       <View style={styles.ribbonWrapper}>
@@ -70,19 +76,37 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#121212',
+    backgroundColor: '#0A0B0D',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
   },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  bars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    height: 78,
+  },
+  bar: {
+    width: 11,
+    height: 72,
+    backgroundColor: '#FF6A1A',
+    transform: [{ skewX: '-16deg' }],
+  },
+  barShort: {
+    height: 48,
+    opacity: 0.72,
+  },
   ultim: {
-    fontSize: 96,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
+    fontSize: 100,
+    fontFamily: FONTS.displayBold,
+    color: '#F6F2EA',
     letterSpacing: 6,
-    textShadowColor: 'rgba(255,90,31,0.4)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 20,
   },
   ribbonWrapper: {
     marginTop: 24,
@@ -90,14 +114,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   ribbon: {
-    backgroundColor: '#FF4D12',
+    backgroundColor: '#FF6A1A',
     paddingVertical: 12,
     overflow: 'hidden',
   },
   ribbonText: {
-    fontSize: 20,
+    fontSize: 17,
     fontFamily: FONTS.extraBold,
-    color: '#FFFFFF',
+    color: '#0A0B0D',
     letterSpacing: 2,
     textTransform: 'uppercase',
     width: width * 5,

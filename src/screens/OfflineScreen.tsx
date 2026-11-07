@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FONTS, RADIUS, SPACING } from '../theme/theme';
+import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
 import { CreditIcon } from '../components/CreditIcon';
 import { GradientButton } from '../components/buttons';
+import { ArenaBrand } from '../components/ArenaUI';
 
 interface OfflineScreenProps {
   onRetry?: () => void;
@@ -24,11 +21,8 @@ export const OfflineScreen: React.FC<OfflineScreenProps> = ({ onRetry }) => {
   const handleRetry = async () => {
     try {
       setIsRetrying(true);
-      if (onRetry) {
-        await onRetry();
-      } else {
-        await refreshData();
-      }
+      if (onRetry) await onRetry();
+      else await refreshData();
     } catch (e) {
       console.log('[Offline Retry Error]', e);
     } finally {
@@ -39,79 +33,53 @@ export const OfflineScreen: React.FC<OfflineScreenProps> = ({ onRetry }) => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppBackground />
-      {/* Top Header */}
       <View
         style={[
           styles.topBar,
-          {
-            paddingTop: Math.max(insets.top, 12) + 6,
-            backgroundColor: 'rgba(10,10,14,0.88)',
-            borderBottomColor: 'rgba(255,255,255,0.10)',
-          },
+          { paddingTop: Math.max(insets.top, 12) + 6 },
         ]}
       >
-        <Text style={[styles.brandText, { color: colors.onSurface }]}>
-          ULTIM<Text style={{ color: colors.primary }}>.</Text>
-        </Text>
+        <ArenaBrand />
         <View style={styles.offlineBadge}>
-          <View style={[styles.offlineDot, { backgroundColor: colors.error }]} />
+          <View style={styles.offlineDot} />
           <Text style={styles.offlineBadgeText}>OFFLINE</Text>
         </View>
       </View>
 
       <View style={styles.content}>
-        {/* Main Offline Card */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-          ]}
-        >
-          {/* Icon Ring */}
-          <View style={[styles.iconWrapper, { backgroundColor: colors.glassHigh }]}>
-            <Ionicons name="cloud-offline-sharp" size={46} color={colors.primary} />
+        <View style={styles.card}>
+          <View style={styles.iconWrapper}>
+            <Ionicons name="cloud-offline-outline" size={36} color={COLORS.primary} />
           </View>
 
-          <Text style={[styles.title, { color: colors.onSurface }]}>No Internet Connection</Text>
-
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-            We can't connect to ULTIM servers right now. Please check your Wi-Fi or mobile data network and try again.
+          <Text style={styles.title}>No internet connection</Text>
+          <Text style={styles.subtitle}>
+            We can't connect to ULTIM servers right now. Check your Wi-Fi or mobile data and try again.
           </Text>
 
-          {/* Cached User Summary if available */}
           {user && (
-            <View
-              style={[
-                styles.cachedUserBox,
-                { backgroundColor: colors.glassHigh, borderColor: colors.glassBorder },
-              ]}
-            >
+            <View style={styles.cachedUserBox}>
               <View style={styles.cachedUserRow}>
-                <Ionicons name="person-circle-sharp" size={24} color={colors.primary} />
-                <View style={{ marginLeft: 8, flex: 1 }}>
-                  <Text style={[styles.cachedName, { color: colors.onSurface }]}>
-                    Signed in as {user.name}
-                  </Text>
-                  <Text style={[styles.cachedSub, { color: colors.textMuted }]}>
-                    {userMemberships.length} Active Pass(es) Saved Locally
+                <Ionicons name="person-outline" size={20} color={COLORS.primary} />
+                <View style={{ marginLeft: 9, flex: 1 }}>
+                  <Text style={styles.cachedName}>Signed in as {user.name}</Text>
+                  <Text style={styles.cachedSub}>
+                    {userMemberships.length} active pass(es) saved locally
                   </Text>
                 </View>
                 {totalActiveCredits > 0 && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Text style={[styles.creditsVal, { color: colors.secondary }]}>
-                      {totalActiveCredits}
-                    </Text>
-                    <CreditIcon size={18} />
+                    <Text style={styles.creditsVal}>{totalActiveCredits}</Text>
+                    <CreditIcon size={16} />
                   </View>
                 )}
               </View>
             </View>
           )}
 
-          {/* Retry Button */}
           <GradientButton
-            label="RETRY CONNECTION"
-            icon="refresh-sharp"
+            label="Retry connection"
+            icon="refresh"
             onPress={handleRetry}
             loading={isRetrying}
             fullWidth
@@ -133,33 +101,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.containerPadding,
     paddingBottom: 12,
     borderBottomWidth: 1,
-  },
-  brandText: {
-    fontSize: 20,
-    fontFamily: FONTS.black,
-    letterSpacing: 0.5,
+    borderBottomColor: COLORS.line,
+    backgroundColor: COLORS.background,
   },
   offlineBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    paddingHorizontal: 10,
+    gap: 5,
+    paddingHorizontal: 9,
     paddingVertical: 4,
-    borderRadius: RADIUS.full,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderColor: 'rgba(243,114,127,0.3)',
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(243,114,127,0.10)',
   },
   offlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: RADIUS.full,
-    marginRight: 6,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: COLORS.error,
   },
   offlineBadgeText: {
-    fontSize: 10,
-    fontFamily: FONTS.bold,
-    color: '#EF4444',
-    letterSpacing: 0.4,
+    color: COLORS.error,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    letterSpacing: 0.6,
   },
   content: {
     flex: 1,
@@ -167,62 +133,70 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   card: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    padding: 20,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 5,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.panel,
+    backgroundColor: COLORS.surface,
   },
   iconWrapper: {
-    width: 90,
-    height: 90,
-    borderRadius: RADIUS.full,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.primaryBorder,
+    backgroundColor: COLORS.primaryMuted,
+    marginBottom: 18,
   },
   title: {
-    fontSize: 22,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.3,
-    lineHeight: 28,
-    textAlign: 'center',
-    marginBottom: SPACING.xs,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 34,
+    lineHeight: 33,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   subtitle: {
-    fontSize: 13,
+    marginTop: 8,
+    marginBottom: 18,
+    color: COLORS.muted,
     fontFamily: FONTS.regular,
-    textAlign: 'center',
+    fontSize: 13,
     lineHeight: 20,
-    marginBottom: SPACING.md,
   },
   cachedUserBox: {
     width: '100%',
-    borderRadius: RADIUS.lg,
     padding: 12,
-    marginBottom: SPACING.md,
+    marginBottom: 16,
     borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surfaceBright,
   },
   cachedUserRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   cachedName: {
-    fontSize: 13,
-    fontFamily: FONTS.bold,
+    color: COLORS.paper,
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    lineHeight: 16,
   },
   cachedSub: {
-    fontSize: 11,
-    fontFamily: FONTS.regular,
-    lineHeight: 16,
     marginTop: 2,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 10.5,
+    lineHeight: 14,
   },
   creditsVal: {
-    fontSize: 14,
-    fontFamily: FONTS.extraBold,
+    color: COLORS.primary,
+    fontFamily: FONTS.display,
+    fontSize: 18,
+    lineHeight: 18,
   },
 });

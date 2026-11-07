@@ -11,26 +11,53 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { FONTS, RADIUS, SPACING } from '../theme/theme';
+import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { SUPPORT_EMAIL } from './LegalScreen';
-import { BlurTitleHeader, useBlurHeaderLayout } from '../components/Blur';
 import { useTabBarClearance } from '../navigation/BlurTabBar';
 import { CreditIcon } from '../components/CreditIcon';
-import { GradientButton, OutlineButton, IconButton } from '../components/buttons';
+import { GradientButton, IconButton, OutlineButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
+import { PageHead } from '../components/ArenaUI';
 
 interface ProfileScreenProps {
   navigation: any;
 }
+
+type MenuRowProps = {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  title: string;
+  note?: string;
+  onPress?: () => void;
+  danger?: boolean;
+  last?: boolean;
+};
+
+const MenuRow: React.FC<MenuRowProps> = ({ icon, title, note, onPress, danger, last }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    disabled={!onPress}
+    activeOpacity={0.7}
+    style={[styles.menuRow, !last && styles.menuRowBorder]}
+  >
+    <Ionicons name={icon} size={18} color={danger ? COLORS.error : COLORS.primary} />
+    <View style={styles.menuCopy}>
+      <Text style={[styles.menuTitle, danger && { color: COLORS.error }]}>{title}</Text>
+      {!!note && <Text style={styles.menuNote}>{note}</Text>}
+    </View>
+    {!!onPress && (
+      <Ionicons name="chevron-forward" size={17} color={danger ? 'rgba(243,114,127,0.45)' : COLORS.meta} />
+    )}
+  </TouchableOpacity>
+);
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const {
     user,
     isAuthenticated,
     logout,
-    transactions,
     userMemberships,
     totalActiveCredits,
     refreshData,
@@ -38,7 +65,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     colors,
   } = useApp();
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const { height: headerHeight } = useBlurHeaderLayout();
+  const insets = useSafeAreaInsets();
   const tabBarClearance = useTabBarClearance();
 
   const onRefresh = async () => {
@@ -50,11 +77,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const handleLogoutPress = () => {
     Alert.alert('Sign Out', 'Are you sure you want to log out of your ULTIM account?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'LOG OUT',
-        style: 'destructive',
-        onPress: () => logout(),
-      },
+      { text: 'LOG OUT', style: 'destructive', onPress: () => logout() },
     ]);
   };
 
@@ -79,6 +102,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
   const openLegal = (type: 'privacy' | 'terms') => navigation.navigate('Legal', { type });
+  const initials = user?.name
+    ? user.name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join('')
+    : 'U';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -86,13 +117,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + 24, paddingBottom: tabBarClearance + 16 },
+          {
+            paddingTop: Math.max(insets.top, 12) + 26,
+            paddingBottom: tabBarClearance + 16,
+          },
         ]}
         showsVerticalScrollIndicator={false}
         removeClippedSubviews
         refreshControl={
           <RefreshControl
-            progressViewOffset={headerHeight}
+            progressViewOffset={insets.top + 20}
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
@@ -101,459 +135,333 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }
       >
         {!isAuthenticated ? (
-          /* Sign In State */
-          <View
-            style={[
-              styles.unauthCard,
-              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-            ]}
-          >
-            <Ionicons name="person-circle-outline" size={54} color={colors.primary} />
-            <Text style={[styles.unauthTitle, { color: colors.onSurface }]}>Sign In Required</Text>
-            <Text style={[styles.unauthSub, { color: colors.textMuted }]}>
-              Sign in or create an account to view your athlete stats, credit ledger, and settings.
-            </Text>
-            <GradientButton
-              label="SIGN IN / REGISTER"
-              onPress={() => navigation.navigate('SignIn')}
-              style={styles.signInBtn}
+          <Animated.View entering={FadeInDown.duration(320)}>
+            <PageHead
+              eyebrow="Account"
+              title="Your"
+              accent=" profile"
+              sub="Sign in to view your athlete stats, credit ledger and settings."
             />
-          </View>
-        ) : (
-          <>
-            {/* User Profile Card */}
-            <Animated.View entering={FadeInDown.delay(40).duration(340).damping(24)}>
-            <View
-              style={[
-                styles.profileCard,
-                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-              ]}
-            >
-              <View style={[styles.avatarBox, { backgroundColor: colors.primary }]}>
-                <Text style={styles.avatarText}>
-                  {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-                </Text>
+            <View style={styles.signInPanel}>
+              <View style={styles.signInIcon}>
+                <Ionicons name="person-outline" size={28} color={COLORS.primary} />
               </View>
-
-              <View style={styles.profileDetails}>
-                <Text style={[styles.userName, { color: colors.onSurface }]}>
-                  {user?.name || 'Athlete'}
-                </Text>
-                <Text style={[styles.userPhone, { color: colors.textMuted }]}>
-                  {user?.phone || 'No phone linked'}
-                </Text>
-
-              </View>
-
-              <IconButton
-                icon="log-out-outline"
-                onPress={handleLogoutPress}
-                backgroundColor="transparent"
-                iconColor={colors.error}
-                size={36}
-                iconSize={20}
+              <Text style={styles.signInTitle}>Sign in required</Text>
+              <Text style={styles.signInSub}>
+                Sign in or create an account to keep your passes, bookings and credits in one place.
+              </Text>
+              <GradientButton
+                label="Sign in / register"
+                onPress={() => navigation.navigate('SignIn')}
+                fullWidth
+                style={styles.signInBtn}
               />
             </View>
+          </Animated.View>
+        ) : (
+          <>
+            <Animated.View entering={FadeInDown.duration(300)}>
+              <PageHead
+                eyebrow="Account"
+                title="Your"
+                accent=" profile"
+                sub="Your ULTIM identity, access and reminders."
+              />
             </Animated.View>
 
-            {/* Quick Stats Grid */}
-            <Animated.View entering={FadeInDown.delay(100).duration(340).damping(24)}>
-            <View style={styles.statsRow}>
-              <View
-                style={[
-                  styles.statBox,
-                  { backgroundColor: colors.emberPanel, borderColor: colors.emberBorder },
-                ]}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.statVal, { color: colors.primary }]}>{totalActiveCredits}</Text>
-                  <CreditIcon size={26} />
+            <Animated.View entering={FadeInDown.delay(60).duration(340).damping(24)}>
+              <View style={styles.profileHeader}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{initials}</Text>
                 </View>
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>ACTIVE CREDITS</Text>
+                <View style={styles.profileCopy}>
+                  <Text style={styles.profileName} numberOfLines={1}>
+                    {user?.name || 'Athlete'}
+                  </Text>
+                  <Text style={styles.profileMeta} numberOfLines={2}>
+                    {user?.phone || 'No phone linked'}
+                    {user?.email ? ` · ${user.email}` : ''}
+                  </Text>
+                  <Text style={styles.profileLocation}>{user?.location || 'Location not set'}</Text>
+                </View>
+                <IconButton
+                  icon="log-out-outline"
+                  onPress={handleLogoutPress}
+                  backgroundColor="transparent"
+                  borderColor={COLORS.line}
+                  iconColor={COLORS.error}
+                  size={40}
+                  iconSize={19}
+                />
               </View>
-
-              <View
-                style={[
-                  styles.statBox,
-                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-                ]}
-              >
-                <Text style={[styles.statVal, { color: colors.secondary }]}>
-                  {userMemberships.length}
-                </Text>
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>CENTER PASSES</Text>
-              </View>
-            </View>
             </Animated.View>
 
-            {/* Transactions — single link row, full ledger lives on its own screen */}
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-                TRANSACTIONS
-              </Text>
-            </View>
+            <Animated.View entering={FadeInDown.delay(110).duration(340).damping(24)}>
+              <View style={styles.statsRow}>
+                <View style={styles.statTile}>
+                  <Text style={styles.statLabel}>ACTIVE CREDITS</Text>
+                  <View style={styles.statValueRow}>
+                    <Text style={styles.statValue}>{totalActiveCredits}</Text>
+                    <CreditIcon size={20} />
+                  </View>
+                </View>
+                <View style={styles.statTile}>
+                  <Text style={styles.statLabel}>CENTER PASSES</Text>
+                  <Text style={styles.statValue}>{userMemberships.length}</Text>
+                </View>
+              </View>
+            </Animated.View>
 
-            <View style={[styles.settingsCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-              <TouchableOpacity
-                style={styles.settingsRow}
+            <Text style={styles.sectionLabel}>TRANSACTIONS</Text>
+            <View style={styles.menu}>
+              <MenuRow
+                icon="receipt-outline"
+                title="Credit transactions"
+                note={`${totalActiveCredits} credits available · view full ledger`}
                 onPress={() => navigation.navigate('Transactions')}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.settingsIcon, { backgroundColor: colors.goldPanel }]}>
-                  <Ionicons name="receipt-outline" size={16} color={colors.secondary} />
-                </View>
-                <View style={styles.settingsTextCol}>
-                  <Text style={[styles.settingsLabel, { flex: 0, color: colors.onSurface }]}>
-                    Credit Transactions
-                  </Text>
-                  <Text style={[styles.settingsSub, { color: colors.textMuted }]}>
-                    {totalActiveCredits} credits available · view full ledger
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
-              </TouchableOpacity>
+                last
+              />
             </View>
 
-            {/* Account & Privacy */}
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-                ACCOUNT & PRIVACY
-              </Text>
-            </View>
-
-            <View style={[styles.settingsCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-              <TouchableOpacity style={styles.settingsRow} onPress={() => openLegal('privacy')} activeOpacity={0.7}>
-                <View style={[styles.settingsIcon, { backgroundColor: colors.glassHigh }]}>
-                  <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
-                </View>
-                <Text style={[styles.settingsLabel, { color: colors.onSurface }]}>Privacy Policy</Text>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
-              </TouchableOpacity>
-
-              <View style={[styles.settingsDivider, { backgroundColor: 'rgba(255,255,255,0.07)' }]} />
-
-              <TouchableOpacity style={styles.settingsRow} onPress={() => openLegal('terms')} activeOpacity={0.7}>
-                <View style={[styles.settingsIcon, { backgroundColor: colors.glassHigh }]}>
-                  <Ionicons name="document-text-outline" size={16} color={colors.primary} />
-                </View>
-                <Text style={[styles.settingsLabel, { color: colors.onSurface }]}>Terms of Service</Text>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
-              </TouchableOpacity>
-
-              <View style={[styles.settingsDivider, { backgroundColor: 'rgba(255,255,255,0.07)' }]} />
-
-              <TouchableOpacity
-                style={styles.settingsRow}
+            <Text style={styles.sectionLabel}>ACCOUNT & PRIVACY</Text>
+            <View style={styles.menu}>
+              <MenuRow
+                icon="ticket-outline"
+                title="Membership & credits"
+                note="Wallet, passes and validity"
+                onPress={() => navigation.navigate('AccessTab')}
+              />
+              <MenuRow
+                icon="location-outline"
+                title="Home area"
+                note={user?.location || 'Location not set'}
+              />
+              <MenuRow
+                icon="shield-checkmark-outline"
+                title="Privacy policy"
+                onPress={() => openLegal('privacy')}
+              />
+              <MenuRow
+                icon="document-text-outline"
+                title="Terms of service"
+                onPress={() => openLegal('terms')}
+              />
+              <MenuRow
+                icon="mail-outline"
+                title="Contact support"
+                note={SUPPORT_EMAIL}
                 onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.settingsIcon, { backgroundColor: colors.glassHigh }]}>
-                  <Ionicons name="mail-outline" size={16} color={colors.primary} />
-                </View>
-                <Text style={[styles.settingsLabel, { color: colors.onSurface }]}>Contact Support</Text>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.35)" />
-              </TouchableOpacity>
-
-              <View style={[styles.settingsDivider, { backgroundColor: 'rgba(255,255,255,0.07)' }]} />
-
-              <TouchableOpacity style={styles.settingsRow} onPress={handleDeleteAccountPress} activeOpacity={0.7}>
-                <View style={[styles.settingsIcon, { backgroundColor: 'rgba(243,114,127,0.12)' }]}>
-                  <Ionicons name="trash-outline" size={16} color={colors.error} />
-                </View>
-                <Text style={[styles.settingsLabel, { color: colors.error }]}>Delete Account</Text>
-                <Ionicons name="chevron-forward" size={16} color="rgba(243,114,127,0.5)" />
-              </TouchableOpacity>
+              />
+              <MenuRow
+                icon="trash-outline"
+                title="Delete account"
+                onPress={handleDeleteAccountPress}
+                danger
+                last
+              />
             </View>
 
-            <Text style={[styles.versionText, { color: 'rgba(255,255,255,0.30)' }]}>
+            <Text style={styles.versionText}>
               ULTIM v{Constants.expoConfig?.version ?? '1.0.0'}
               {Constants.nativeBuildVersion ? ` (${Constants.nativeBuildVersion})` : ''}
             </Text>
 
-            {/* Log Out Button */}
-            <OutlineButton
-              label="LOG OUT"
-              icon="log-out-outline"
-              onPress={handleLogoutPress}
-              color={colors.error}
-              style={styles.logoutBtn}
-            />
+            <View style={styles.logoutWrap}>
+              <OutlineButton
+                label="Log out"
+                icon="log-out-outline"
+                onPress={handleLogoutPress}
+                color={COLORS.error}
+                fullWidth
+              />
+            </View>
           </>
         )}
       </ScrollView>
-
-      {/* Floating blur header — screens scroll behind it */}
-      <BlurTitleHeader
-        title={<>Athlete <Text style={{ color: colors.primary }}>Profile</Text></>}
-      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  seeAllText: {
-    fontSize: 10.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.2,
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
   },
-  settingsCard: {
-    borderRadius: RADIUS.card,
+  scrollContent: {
+    paddingHorizontal: SPACING.containerPadding,
+  },
+  signInPanel: {
+    alignItems: 'flex-start',
+    padding: 20,
     borderWidth: 1,
-    overflow: 'hidden',
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.panel,
+    backgroundColor: COLORS.surface,
   },
-  settingsRow: {
+  signInIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primaryMuted,
+  },
+  signInTitle: {
+    marginTop: 16,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 28,
+    lineHeight: 27,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  signInSub: {
+    marginTop: 6,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  signInBtn: {
+    marginTop: 20,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 22,
+  },
+  avatar: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,106,26,0.5)',
+    backgroundColor: COLORS.surfaceBright,
+  },
+  avatarText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.display,
+    fontSize: 28,
+    lineHeight: 30,
+    letterSpacing: 0.5,
+  },
+  profileCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  profileName: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 30,
+    lineHeight: 29,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  profileMeta: {
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 11.5,
+    lineHeight: 16,
+  },
+  profileLocation: {
+    color: COLORS.meta,
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    lineHeight: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  statTile: {
+    flex: 1,
+    gap: 7,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
+  },
+  statLabel: {
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 8.5,
+    lineHeight: 11,
+    letterSpacing: 1,
+  },
+  statValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statValue: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 30,
+    lineHeight: 30,
+    letterSpacing: 0.3,
+  },
+  sectionLabel: {
+    marginTop: 26,
+    marginBottom: 10,
+    color: COLORS.meta,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  menu: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
+  },
+  menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    minHeight: 62,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-  settingsIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  settingsTextCol: {
-    flex: 1,
-  },
-  settingsLabel: {
-    flex: 1,
-    fontSize: 13.5,
-    fontFamily: FONTS.semiBold,
-  },
-  settingsSub: {
-    fontSize: 11,
-    fontFamily: FONTS.regular,
-    marginTop: 2,
-  },
-  settingsDivider: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 58,
-  },
-  versionText: {
-    textAlign: 'center',
-    fontSize: 10.5,
-    fontFamily: FONTS.medium,
-    letterSpacing: 0.6,
-    marginTop: 18,
-    marginBottom: 4,
-  },
-  container: {
-    flex: 1,
-  },
-  topBar: {
-    paddingHorizontal: SPACING.containerPadding,
-    paddingBottom: 12,
+  menuRowBorder: {
     borderBottomWidth: 1,
+    borderBottomColor: COLORS.lineSoft,
   },
-  topBarTitle: {
-    fontSize: 22,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.3,
-    lineHeight: 28,
+  menuCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
-  scrollContent: {
-    padding: SPACING.containerPadding,
-    paddingBottom: SPACING.xl,
-  },
-  unauthCard: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginTop: SPACING.lg,
-    borderWidth: 1,
-  },
-  unauthTitle: {
-    fontSize: 18,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.2,
-    lineHeight: 22,
-    marginTop: 10,
-  },
-  unauthSub: {
-    fontSize: 13,
-    fontFamily: FONTS.regular,
-    textAlign: 'center',
-    marginTop: 6,
+  menuTitle: {
+    color: COLORS.paper,
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
     lineHeight: 19,
   },
-  signInBtn: {
-    marginTop: 16,
-  },
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-  },
-  avatarBox: {
-    width: 50,
-    height: 50,
-    borderRadius: RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: '#FFF',
-    fontSize: 22,
-    fontFamily: FONTS.extraBold,
-  },
-  profileDetails: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  userName: {
-    fontSize: 18,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.2,
-    lineHeight: 22,
-  },
-  userPhone: {
-    fontSize: 13,
+  menuNote: {
+    color: COLORS.muted,
     fontFamily: FONTS.regular,
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  userEmail: {
     fontSize: 11,
-    fontFamily: FONTS.regular,
-    marginTop: 1,
     lineHeight: 15,
   },
-
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.md,
-  },
-  statBox: {
-    flex: 0.48,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  statVal: {
-    fontSize: 28,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.3,
-  },
-  statLabel: {
-    fontSize: 9,
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
-  sectionHeader: {
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.xs,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.5,
-  },
-  themeCard: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-  },
-  themeInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  themeIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  themeTextCol: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  themeTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    letterSpacing: -0.1,
-    lineHeight: 20,
-  },
-  themeSub: {
-    fontSize: 11,
-    fontFamily: FONTS.regular,
-    marginTop: 2,
-    lineHeight: 15,
-  },
-
-  emptyCard: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginVertical: SPACING.sm,
-    borderWidth: 1,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.2,
-    lineHeight: 20,
-    marginTop: 10,
-  },
-  emptySub: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 17,
-  },
-  txCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: RADIUS.lg,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-  },
-  txIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  txDetails: {
-    flex: 1,
-  },
-  txTitle: {
-    fontSize: 13,
-    fontFamily: FONTS.bold,
-    lineHeight: 17,
-  },
-  txFacility: {
-    fontSize: 11,
-    fontFamily: FONTS.regular,
-    marginTop: 1,
-    lineHeight: 15,
-  },
-  txDate: {
+  versionText: {
+    marginTop: 22,
+    color: COLORS.meta,
+    fontFamily: FONTS.medium,
     fontSize: 10,
-    fontFamily: FONTS.regular,
-    marginTop: 2,
-    lineHeight: 13,
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
-  txAmount: {
-    fontSize: 14,
-    fontFamily: FONTS.extraBold,
-  },
-  logoutBtn: {
-    marginTop: SPACING.lg,
+  logoutWrap: {
+    marginTop: 14,
   },
 });

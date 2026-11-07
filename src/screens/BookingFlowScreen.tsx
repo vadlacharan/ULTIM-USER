@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,14 +11,13 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../theme/theme';
+import Animated, { FadeInDown, SlideInRight } from 'react-native-reanimated';
+import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { SwipeToBook } from '../components/SwipeToBook';
 import { CreditIcon } from '../components/CreditIcon';
-import { IconButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
+import { DetailTopBar, Eyebrow } from '../components/ArenaUI';
 import { api } from '../services/api';
 import { adaptTenantToFacility } from '../services/adapters';
 import { getActivityIcon } from '../utils/activityIcons';
@@ -54,12 +53,15 @@ interface SlotItem {
 }
 
 export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, navigation }) => {
-  const { facilityId } = route.params || {};
+  const { facilityId, membershipId } = route.params || {};
   const { facilities, userMemberships, bookings, bookSession, refreshBookingsAndPasses, colors } =
     useApp();
   const insets = useSafeAreaInsets();
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [hideFull, setHideFull] = useState<boolean>(false);
+  // Two-step wizard: 1 = date & sport, 2 = time, court & confirm.
+  const [step, setStep] = useState<1 | 2>(1);
+  const scrollRef = useRef<ScrollView>(null);
 
   // Dynamic Facility loader
   const [facility, setFacility] = useState<Facility | null>(
@@ -97,8 +99,13 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
     fetchTargetFacility();
   }, [facilityId, facilities]);
 
-  // Active membership for this facility
+  // Active membership — an explicitly chosen pass (BOOK on a pass card) wins,
+  // otherwise fall back to the best pass for this facility.
+  const explicitMembership = membershipId
+    ? userMemberships.find((m) => String(m.id) === String(membershipId))
+    : undefined;
   const activeMembership =
+    explicitMembership ||
     userMemberships.find(
       (m) => String(m.facilityId) === String(facility?.id) && m.status === 'ACTIVE'
     ) ||
@@ -262,6 +269,11 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
   useEffect(() => {
     loadAvailability();
   }, [loadAvailability]);
+
+  // Back to top whenever the wizard step changes.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [step]);
 
   const courtCapacity = selectedActivity?.capacityPerCourt || 1;
 
@@ -475,6 +487,7 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
         durationMins: effectiveDuration,
         creditsSpent: requiredCredits,
         facilityImage: facility.imageUrl,
+        membershipId: activeMembership ? String(activeMembership.id) : undefined,
       });
 
       await refreshBookingsAndPasses();
@@ -552,251 +565,260 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppBackground />
 
-      {/* ── Top Bar ── */}
       <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) + 4 }]}>
-        <IconButton
-          icon="arrow-back"
-          size={38}
-          iconSize={20}
-          iconColor="#FFFFFF"
-          backgroundColor="#1F1F1F"
-          borderColor="rgba(255,255,255,0.08)"
-          onPress={() => navigation.goBack()}
+        <DetailTopBar
+          label="Session booking"
+          onBack={() => navigation.goBack()}
+          right={
+            <TouchableOpacity style={styles.liveChip} onPress={loadAvailability} activeOpacity={0.8}>
+              <View
+                style={[
+                  styles.liveDot,
+                  { backgroundColor: loadingAvailability ? COLORS.meta : COLORS.success },
+                ]}
+              />
+              <Text style={styles.liveText}>{loadingAvailability ? 'SYNC' : 'LIVE'}</Text>
+            </TouchableOpacity>
+          }
         />
-        <Text style={styles.topBarTitle}>BOOK A SESSION</Text>
-        <TouchableOpacity style={styles.liveChip} onPress={loadAvailability} activeOpacity={0.8}>
-          <View
-            style={[
-              styles.liveDot,
-              { backgroundColor: loadingAvailability ? COLORS.textMuted : COLORS.success },
-            ]}
-          />
-          <Text style={styles.liveText}>{loadingAvailability ? 'SYNC' : 'LIVE'}</Text>
-        </TouchableOpacity>
       </View>
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, 14) + 145 },
+          { paddingBottom: Math.max(insets.bottom, 14) + 196 },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── VENUE & PASS MEDIA BANNER (Archetype: Compact Solid #181818 Media Card) ── */}
         <Animated.View entering={FadeInDown.delay(30).duration(320).damping(24)}>
-          <View style={styles.venueBannerCard}>
-            <View style={styles.venueTopRow}>
-              {thumbUri ? (
-                <Image
-                  source={{ uri: thumbUri }}
-                  style={styles.venueThumb}
-                  contentFit="cover"
-                  transition={160}
-                  cachePolicy="memory-disk"
-                />
-              ) : (
-                <View style={[styles.venueThumb, styles.venueThumbFallback]}>
-                  <Ionicons name="barbell-outline" size={22} color={COLORS.primary} />
-                </View>
-              )}
-
-              <View style={styles.venueMetaCol}>
-                <Text style={styles.venueName} numberOfLines={1}>
-                  {facility.name}
-                </Text>
-                <Text style={styles.venueAddr} numberOfLines={1}>
-                  {facility.address}
-                </Text>
-              </View>
-
-              <View style={styles.balanceBadge}>
-                <Text style={styles.balanceBadgeLabel}>BALANCE</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                  <Text
-                    style={[
-                      styles.balanceBadgeVal,
-                      { color: isBalanceSufficient ? '#FFFFFF' : COLORS.error },
-                    ]}
-                  >
-                    {userCreditBalance}
-                  </Text>
-                  <CreditIcon size={15} />
-                </View>
-              </View>
-            </View>
-
+          <View style={styles.sessionHero}>
+            <Eyebrow>Book a session</Eyebrow>
+            <Text style={styles.sessionTitle}>Pick your game.</Text>
             {activeMembership && (
-              <View style={styles.passInlineBar}>
-                <View style={styles.passInlineLeft}>
-                  <Ionicons name="shield-checkmark" size={13} color={COLORS.secondary} />
-                  <Text style={styles.passInlineText} numberOfLines={1}>
+              <View style={styles.planChip}>
+                <View style={styles.planDot} />
+                <View style={styles.planChipCopy}>
+                  <Text style={styles.planChipName} numberOfLines={1}>
                     {activeMembership.planTitle}
                   </Text>
+                  <Text style={styles.planChipMeta}>
+                    {userCreditBalance} credits available · exp {activeMembership.expiryDate}
+                  </Text>
                 </View>
-                <Text style={styles.passInlineExp}>EXP {activeMembership.expiryDate}</Text>
               </View>
             )}
           </View>
         </Animated.View>
 
-        {/* ── STEP 01: DATE (Archetype: Segmented Calendar Dock) ── */}
-        <Animated.View entering={FadeInDown.delay(70).duration(320).damping(24)}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.stepLabelRow}>
-              <View style={styles.stepPill}>
-                <Text style={styles.stepPillText}>01</Text>
-              </View>
-              <Text style={styles.sectionTitle}>CHOOSE DAY</Text>
-            </View>
-            <Text style={styles.sectionRightMeta}>3-DAY WINDOW</Text>
-          </View>
-
-          <View style={styles.dateDock}>
-            {dates.map((d) => {
-              const isSelected = selectedDate === d.label;
-              const [dayNum, mon] = d.dateSub.split(' ');
-              return (
-                <TouchableOpacity
-                  key={d.label}
-                  style={[styles.dateTile, isSelected && styles.dateTileActive]}
-                  onPress={() => setSelectedDate(d.label)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={[styles.dateDayTag, isSelected && styles.dateDayTagActive]}>
-                    {d.dayName}
-                  </Text>
-                  <Text style={[styles.dateNum, isSelected && styles.dateNumActive]}>{dayNum}</Text>
-                  <Text style={[styles.dateMon, isSelected && styles.dateMonActive]}>
-                    {(mon || '').toUpperCase()}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </Animated.View>
-
-        {/* ── STEP 02: SPORT & DURATION (Archetype: Horizontal Medallion Cards + Pill Switch) ── */}
-        <Animated.View entering={FadeInDown.delay(110).duration(320).damping(24)}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.stepLabelRow}>
-              <View style={styles.stepPill}>
-                <Text style={styles.stepPillText}>02</Text>
-              </View>
-              <Text style={styles.sectionTitle}>ACTIVITY & DURATION</Text>
-            </View>
-
-            {!isGym && (
-              <View style={styles.durationMiniSwitch}>
-                {([60, 120] as const).map((mins) => {
-                  const active = duration === mins;
-                  return (
-                    <TouchableOpacity
-                      key={mins}
-                      style={[styles.durationMiniPill, active && styles.durationMiniPillActive]}
-                      onPress={() => setDuration(mins)}
-                      activeOpacity={0.85}
-                    >
-                      <Text
-                        style={[
-                          styles.durationMiniText,
-                          active && styles.durationMiniTextActive,
-                        ]}
-                      >
-                        {mins === 60 ? '60M' : '120M'}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.sportScroll}
-          >
-            {availableActivities.map((act) => {
-              const isSelected = selectedActivity?.activityKey === act.activityKey;
-              return (
-                <TouchableOpacity
-                  key={act.activityKey}
-                  style={[styles.sportCard, isSelected && styles.sportCardActive]}
-                  onPress={() => setSelectedActivity(act)}
-                  activeOpacity={0.85}
-                >
-                  <View
-                    style={[
-                      styles.sportMedallion,
-                      isSelected && styles.sportMedallionActive,
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name={getActivityIcon(act.activityKey || act.sportLabel)}
-                      size={18}
-                      color={isSelected ? COLORS.onPrimary : COLORS.secondary}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[styles.sportCardName, isSelected && { color: '#FFFFFF' }]}
-                      numberOfLines={1}
-                    >
-                      {act.sportLabel}
-                    </Text>
-                    <View style={styles.sportRateRow}>
-                      <Text
-                        style={[
-                          styles.sportRateNum,
-                          { color: isSelected ? COLORS.primary : COLORS.textMuted },
-                        ]}
-                      >
-                        {act.creditsPer60Mins}
-                      </Text>
-                      <CreditIcon size={12} />
-                      <Text style={styles.sportRateUnit}>/ HR</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </Animated.View>
-
-        {/* ── STEP 03: TIME SLOT (Archetype: Period-Tabbed 3-Column Time Deck Card) ── */}
-        <Animated.View entering={FadeInDown.delay(150).duration(320).damping(24)}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.stepLabelRow}>
-              <View style={styles.stepPill}>
-                <Text style={styles.stepPillText}>03</Text>
-              </View>
-              <Text style={styles.sectionTitle}>PICK START TIME</Text>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.hideFullBtn, hideFull && styles.hideFullBtnActive]}
-              onPress={() => setHideFull((v) => !v)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={hideFull ? 'checkmark-circle' : 'filter-outline'}
-                size={12}
-                color={hideFull ? COLORS.primary : COLORS.textMuted}
+        <Animated.View entering={FadeInDown.delay(60).duration(320).damping(24)}>
+          <View style={styles.venueCard}>
+            {thumbUri ? (
+              <Image
+                source={{ uri: thumbUri }}
+                style={styles.venueThumb}
+                contentFit="cover"
+                transition={180}
+                cachePolicy="memory-disk"
               />
-              <Text
-                style={[
-                  styles.hideFullBtnText,
-                  { color: hideFull ? COLORS.primary : COLORS.textMuted },
-                ]}
-              >
-                AVAILABLE ONLY
-              </Text>
-            </TouchableOpacity>
-          </View>
+            ) : (
+              <View style={[styles.venueThumb, styles.venueThumbFallback]}>
+                <Ionicons name="barbell-outline" size={21} color={COLORS.primary} />
+              </View>
+            )}
 
-          <View style={styles.timeDeckCard}>
-            {/* Period Tabs (Morning / Afternoon / Evening) */}
-            <View style={styles.periodTabBar}>
+            <View style={styles.venueMetaCol}>
+              <Text style={styles.venueName} numberOfLines={1}>
+                {facility.name}
+              </Text>
+              <Text style={styles.venueAddr} numberOfLines={1}>
+                {facility.address}
+              </Text>
+            </View>
+
+            <View style={styles.balanceBadge}>
+              <Text style={styles.balanceBadgeLabel}>BALANCE</Text>
+              <View style={styles.balanceBadgeRow}>
+                <Text
+                  style={[
+                    styles.balanceBadgeVal,
+                    { color: isBalanceSufficient ? COLORS.paper : COLORS.error },
+                  ]}
+                >
+                  {userCreditBalance}
+                </Text>
+                <CreditIcon size={14} />
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        {step === 1 && (
+          <Animated.View key="booking-step-1" entering={SlideInRight.duration(300).damping(26)}>
+            <View style={styles.stepProgress}>
+              <View style={styles.stepProgressRow}>
+                <Text style={styles.stepProgressStep}>STEP 1 OF 2</Text>
+                <Text style={styles.stepProgressLabel}>DATE & SPORT</Text>
+              </View>
+              <View style={styles.stepProgressTrack}>
+                <View style={[styles.stepProgressFill, { width: '50%' }]} />
+              </View>
+            </View>
+
+        {/* 01 — DATE */}
+        <Animated.View entering={FadeInDown.delay(90).duration(320).damping(24)}>
+          <View style={styles.sessionStep}>
+            <View style={styles.stepHead}>
+              <Text style={styles.stepNumber}>01</Text>
+              <Text style={styles.stepTitle}>Pick a date</Text>
+              <Text style={styles.stepMeta}>3-DAY WINDOW</Text>
+            </View>
+
+            <View style={styles.dateGrid}>
+              {dates.map((d) => {
+                const isSelected = selectedDate === d.label;
+                const [dayNum, mon] = d.dateSub.split(' ');
+                return (
+                  <TouchableOpacity
+                    key={d.label}
+                    style={[styles.dateOption, isSelected && styles.optionSelected]}
+                    onPress={() => setSelectedDate(d.label)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.dateOptionLabel, isSelected && { color: COLORS.primary }]}>
+                      {d.dayName}
+                    </Text>
+                    <Text style={styles.dateOptionDate}>
+                      {dayNum} <Text style={styles.dateOptionMonth}>{(mon || '').toUpperCase()}</Text>
+                    </Text>
+                    <View style={[styles.optionCheck, isSelected && styles.optionCheckActive]}>
+                      {isSelected && <Ionicons name="checkmark" size={12} color={COLORS.onPrimary} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* 02 — ACTIVITY & DURATION */}
+        <Animated.View entering={FadeInDown.delay(120).duration(320).damping(24)}>
+          <View style={styles.sessionStep}>
+            <View style={styles.stepHead}>
+              <Text style={styles.stepNumber}>02</Text>
+              <Text style={styles.stepTitle}>Choose an activity</Text>
+              {!isGym ? (
+                <View style={styles.durationSwitch}>
+                  {([60, 120] as const).map((mins) => {
+                    const active = duration === mins;
+                    return (
+                      <TouchableOpacity
+                        key={mins}
+                        style={[styles.durationPill, active && styles.durationPillActive]}
+                        onPress={() => setDuration(mins)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.durationText, active && styles.durationTextActive]}>
+                          {mins}M
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={styles.stepMeta}>HOURLY RATE</Text>
+              )}
+            </View>
+
+            <View style={styles.activityGrid}>
+              {availableActivities.map((act) => {
+                const isSelected = selectedActivity?.activityKey === act.activityKey;
+                return (
+                  <TouchableOpacity
+                    key={act.activityKey}
+                    style={[styles.activityOption, isSelected && styles.optionSelected]}
+                    onPress={() => setSelectedActivity(act)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.activityOptionTop}>
+                      <MaterialCommunityIcons
+                        name={getActivityIcon(act.activityKey || act.sportLabel)}
+                        size={16}
+                        color={isSelected ? COLORS.primary : COLORS.muted}
+                      />
+                      <View style={[styles.optionCheck, isSelected && styles.optionCheckActive]}>
+                        {isSelected && <Ionicons name="checkmark" size={12} color={COLORS.onPrimary} />}
+                      </View>
+                    </View>
+                    <View>
+                      <Text style={styles.activityOptionName} numberOfLines={1}>
+                        {act.sportLabel}
+                      </Text>
+                      <View style={styles.activityPriceRow}>
+                        <Text style={styles.activityPrice}>{act.creditsPer60Mins}</Text>
+                        <CreditIcon size={12} />
+                        <Text style={styles.activityPriceUnit}>/ HR</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </Animated.View>
+          </Animated.View>
+        )}
+
+        {step === 2 && (
+          <Animated.View key="booking-step-2" entering={SlideInRight.duration(300).damping(26)}>
+            <View style={styles.stepProgress}>
+              <View style={styles.stepProgressRow}>
+                <Text style={styles.stepProgressStep}>STEP 2 OF 2</Text>
+                <Text style={styles.stepProgressLabel}>TIME & COURT</Text>
+              </View>
+              <View style={styles.stepProgressTrack}>
+                <View style={[styles.stepProgressFill, { width: '100%' }]} />
+              </View>
+            </View>
+
+            {/* Big, unmissable way back to step 1 */}
+            <TouchableOpacity
+              style={styles.bigBackBtn}
+              onPress={() => setStep(1)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="chevron-back" size={20} color={COLORS.onPrimary} />
+              <View style={styles.bigBackCopy}>
+                <Text style={styles.bigBackText}>BACK · DATE & SPORT</Text>
+                <Text style={styles.bigBackSub} numberOfLines={1}>
+                  {selectedDateObj.dateSub} · {selectedActivity?.sportLabel || 'Activity'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+        {/* 03 — TIME */}
+        <Animated.View entering={FadeInDown.delay(150).duration(320).damping(24)}>
+          <View style={styles.sessionStep}>
+            <View style={styles.stepHead}>
+              <Text style={styles.stepNumber}>03</Text>
+              <Text style={styles.stepTitle}>Pick a time</Text>
+              <TouchableOpacity
+                style={[styles.hideFullBtn, hideFull && styles.hideFullBtnActive]}
+                onPress={() => setHideFull((v) => !v)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={hideFull ? 'checkmark-circle' : 'filter-outline'}
+                  size={12}
+                  color={hideFull ? COLORS.primary : COLORS.muted}
+                />
+                <Text style={[styles.hideFullText, hideFull && { color: COLORS.primary }]}>
+                  AVAILABLE
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.periodTabs}>
               {(['MORNING', 'AFTERNOON', 'EVENING'] as SlotPeriod[]).map((period) => {
                 const count = periodBuckets[period]?.length || 0;
                 const isSelected = activePeriod === period;
@@ -806,48 +828,25 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
                     style={[
                       styles.periodTab,
                       isSelected && styles.periodTabActive,
-                      count === 0 && { opacity: 0.4 },
+                      count === 0 && { opacity: 0.35 },
                     ]}
                     onPress={() => setActivePeriod(period)}
                     activeOpacity={0.85}
                   >
-                    <Ionicons
-                      name={PERIOD_META[period].icon}
-                      size={13}
-                      color={isSelected ? COLORS.onPrimary : COLORS.textMuted}
-                    />
-                    <Text
-                      style={[
-                        styles.periodTabText,
-                        isSelected && styles.periodTabTextActive,
-                      ]}
-                    >
-                      {PERIOD_META[period].title}
+                    <Text style={[styles.periodTabText, isSelected && styles.periodTabTextActive]}>
+                      {PERIOD_META[period].short}
                     </Text>
-                    <View
-                      style={[
-                        styles.periodCountBadge,
-                        isSelected && styles.periodCountBadgeActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.periodCountText,
-                          isSelected && styles.periodCountTextActive,
-                        ]}
-                      >
-                        {count}
-                      </Text>
-                    </View>
+                    <Text style={[styles.periodTabCount, isSelected && styles.periodTabCountActive]}>
+                      {count}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
 
-            {/* 3-Column Compact Time Grid for the active period */}
             {currentPeriodSlots.length === 0 ? (
-              <View style={styles.emptyPeriodBox}>
-                <Ionicons name="time-outline" size={24} color={COLORS.textMuted} />
+              <View style={styles.emptyPeriod}>
+                <Ionicons name="time-outline" size={22} color={COLORS.meta} />
                 <Text style={styles.emptyPeriodText}>
                   No {PERIOD_META[activePeriod].title.toLowerCase()} slots available.
                 </Text>
@@ -868,48 +867,45 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
                     <TouchableOpacity
                       key={slot.id}
                       style={[
-                        styles.timeTile,
-                        isSelected && styles.timeTileSelected,
-                        !slot.available && styles.timeTileDisabled,
+                        styles.timeSlot,
+                        isSelected && styles.timeSlotSelected,
+                        !slot.available && styles.timeSlotDisabled,
                       ]}
                       onPress={() => slot.available && setSelectedSlot(slot)}
                       disabled={!slot.available}
                       activeOpacity={0.85}
                     >
+                      {isSelected && <Ionicons name="checkmark" size={14} color={COLORS.onPrimary} />}
                       <Text
                         style={[
-                          styles.timeTileClock,
-                          isSelected && styles.timeTileClockSelected,
-                          !slot.available && styles.timeTileClockDisabled,
+                          styles.timeSlotClock,
+                          isSelected && { color: COLORS.onPrimary },
+                          !slot.available && styles.timeSlotClockDisabled,
                         ]}
                       >
                         {slot.time}
                       </Text>
-                      <View style={styles.timeTileSubRow}>
-                        <View
-                          style={[
-                            styles.timeTileDot,
-                            {
-                              backgroundColor: isSelected
-                                ? COLORS.onPrimary
-                                : !slot.available
-                                  ? COLORS.error
-                                  : slot.free <= 1 && totalCourtsCount > 1
-                                    ? COLORS.secondary
-                                    : COLORS.success,
-                            },
-                          ]}
-                        />
-                        <Text
-                          style={[
-                            styles.timeTileSub,
-                            isSelected && styles.timeTileSubSelected,
-                            !slot.available && { color: COLORS.error },
-                          ]}
-                        >
-                          {statusLabel}
-                        </Text>
-                      </View>
+                      <View
+                        style={[
+                          styles.timeSlotDot,
+                          {
+                            backgroundColor: isSelected
+                              ? COLORS.onPrimary
+                              : !slot.available
+                                ? COLORS.error
+                                : COLORS.success,
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.timeSlotSub,
+                          isSelected && { color: 'rgba(10,11,13,0.65)' },
+                          !slot.available && { color: COLORS.meta },
+                        ]}
+                      >
+                        {statusLabel}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -918,198 +914,176 @@ export const BookingFlowScreen: React.FC<BookingFlowScreenProps> = ({ route, nav
           </View>
         </Animated.View>
 
-        {/* ── STEP 04: COURT / FLOOR (Archetype: 2-Column Capacity Meter Cards) ── */}
-        <Animated.View entering={FadeInDown.delay(190).duration(320).damping(24)}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.stepLabelRow}>
-              <View style={styles.stepPill}>
-                <Text style={styles.stepPillText}>04</Text>
-              </View>
-              <Text style={styles.sectionTitle}>SELECT COURT / FLOOR</Text>
+        {/* 04 — COURT */}
+        <Animated.View entering={FadeInDown.delay(180).duration(320).damping(24)}>
+          <View style={styles.sessionStep}>
+            <View style={styles.stepHead}>
+              <Text style={styles.stepNumber}>04</Text>
+              <Text style={styles.stepTitle}>Choose a court</Text>
+              <Text style={styles.stepMeta}>AT {activeSlot.time}</Text>
             </View>
 
-            <View style={styles.atTimeBadge}>
-              <Ionicons name="time" size={11} color={COLORS.primary} />
-              <Text style={styles.atTimeBadgeText}>AT {activeSlot.time}</Text>
-            </View>
-          </View>
+            <View style={styles.courtList}>
+              {(selectedActivity?.courts || []).map((court) => {
+                const isSelected = selectedCourt?.id === court.id;
+                const booked = bookedCountFor(court.name, activeSlot.rawTime);
+                const freeSpots = Math.max(0, courtCapacity - booked);
+                const isFull = freeSpots === 0;
 
-          <View style={styles.courtGrid}>
-            {(selectedActivity?.courts || []).map((court) => {
-              const isSelected = selectedCourt?.id === court.id;
-              const booked = bookedCountFor(court.name, activeSlot.rawTime);
-              const freeSpots = Math.max(0, courtCapacity - booked);
-              const isFull = freeSpots === 0;
-              const fillRatio =
-                courtCapacity > 0 ? Math.min(100, (freeSpots / courtCapacity) * 100) : 0;
-              const barColor = isFull
-                ? COLORS.error
-                : freeSpots <= Math.ceil(courtCapacity * 0.34)
-                  ? COLORS.secondary
-                  : COLORS.success;
-
-              return (
-                <TouchableOpacity
-                  key={court.id}
-                  style={[
-                    styles.courtTile,
-                    isSelected && styles.courtTileSelected,
-                    isFull && styles.courtTileFull,
-                  ]}
-                  onPress={() => !isFull && setSelectedCourt(court)}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.courtTileTop}>
-                    <Text
-                      style={[
-                        styles.courtTileName,
-                        isSelected && { color: '#FFFFFF' },
-                        isFull && { color: COLORS.textMuted },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {court.name}
-                    </Text>
-                    <View
-                      style={[
-                        styles.courtRadio,
-                        isSelected && styles.courtRadioSelected,
-                      ]}
-                    >
-                      {isSelected && <View style={styles.courtRadioInner} />}
+                return (
+                  <TouchableOpacity
+                    key={court.id}
+                    style={[
+                      styles.courtOption,
+                      isSelected && styles.optionSelected,
+                      isFull && styles.courtOptionFull,
+                    ]}
+                    onPress={() => !isFull && setSelectedCourt(court)}
+                    disabled={isFull}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.courtCopy}>
+                      <Text style={[styles.courtName, isFull && { color: COLORS.muted }]} numberOfLines={1}>
+                        {court.name}
+                      </Text>
+                      <Text style={styles.courtMeta}>
+                        {courtCapacity === 1 ? 'Hourly slot' : `Capacity ${courtCapacity} players`}
+                      </Text>
                     </View>
-                  </View>
-
-                  <View style={styles.courtCapRow}>
-                    <Text style={[styles.courtCapText, { color: barColor }]}>
-                      {isFull
-                        ? 'FULLY BOOKED'
-                        : courtCapacity === 1
-                          ? 'AVAILABLE'
-                          : `${freeSpots} OF ${courtCapacity} SPOTS FREE`}
+                    <Text style={[styles.courtSlots, isFull && { color: COLORS.meta }]}>
+                      {isFull ? 'FULL' : courtCapacity === 1 ? 'AVAILABLE' : `${freeSpots} FREE`}
                     </Text>
-                  </View>
-
-                  <View style={styles.courtMeterTrack}>
-                    <View
-                      style={[
-                        styles.courtMeterFill,
-                        { width: `${fillRatio}%`, backgroundColor: barColor },
-                      ]}
-                    />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                    <View style={[styles.optionCheck, styles.courtCheck, isSelected && styles.optionCheckActive]}>
+                      {isSelected && <Ionicons name="checkmark" size={12} color={COLORS.onPrimary} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </Animated.View>
 
-        {/* ── BOARDING-PASS SUMMARY TICKET (Archetype: Perforated Stub Ticket) ── */}
-        <Animated.View entering={FadeInDown.delay(230).duration(320).damping(24)}>
-          <View style={styles.ticketCard}>
-            <LinearGradient
-              colors={['#25150C', '#181515']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.ticketTopStub}
-            >
-              <View style={styles.ticketHeaderRow}>
-                <View>
-                  <Text style={styles.ticketPassLabel}>SESSION RESERVATION TICKET</Text>
-                  <Text style={styles.ticketSportTitle}>
-                    {selectedActivity?.sportLabel} · {selectedCourt?.name}
-                  </Text>
-                </View>
-                <View style={styles.ticketDurationBadge}>
-                  <Text style={styles.ticketDurationText}>{effectiveDuration} MIN</Text>
-                </View>
+        {/* SUMMARY */}
+        <Animated.View entering={FadeInDown.delay(210).duration(320).damping(24)}>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryHead}>
+              <Text style={styles.summaryTitle}>Your session</Text>
+              <View
+                style={[
+                  styles.summaryStatus,
+                  isBookingAllowed && styles.summaryStatusReady,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.summaryStatusText,
+                    isBookingAllowed && { color: COLORS.success },
+                  ]}
+                >
+                  {isBookingAllowed ? 'READY' : 'NOT READY'}
+                </Text>
               </View>
-
-              <View style={styles.ticketMetaGrid}>
-                <View style={styles.ticketMetaCell}>
-                  <Text style={styles.ticketMetaKey}>DATE</Text>
-                  <Text style={styles.ticketMetaVal}>{selectedDateObj.dateSub}</Text>
-                </View>
-                <View style={styles.ticketMetaDivider} />
-                <View style={styles.ticketMetaCell}>
-                  <Text style={styles.ticketMetaKey}>START TIME</Text>
-                  <Text style={styles.ticketMetaVal}>{activeSlot.time}</Text>
-                </View>
-                <View style={styles.ticketMetaDivider} />
-                <View style={styles.ticketMetaCell}>
-                  <Text style={styles.ticketMetaKey}>CREDITS</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                    <Text style={[styles.ticketMetaVal, { color: COLORS.primary, marginTop: 0 }]}>
-                      {requiredCredits}
-                    </Text>
-                    <CreditIcon size={14} />
-                  </View>
-                </View>
-              </View>
-            </LinearGradient>
-
-            {/* Perforation */}
-            <View style={styles.ticketPerforation}>
-              <View style={[styles.notch, styles.notchLeft]} />
-              <View style={styles.dashedLine} />
-              <View style={[styles.notch, styles.notchRight]} />
             </View>
 
-            {/* Bottom Ledger */}
-            <View style={styles.ticketBottomStub}>
-              <View style={styles.ledgerRow}>
-                <Text style={styles.ledgerLabel}>Balance after booking</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Text
-                    style={[
-                      styles.ledgerVal,
-                      {
-                        color: isBalanceSufficient ? COLORS.secondary : COLORS.error,
-                      },
-                    ]}
-                  >
+            <View style={styles.summaryRows}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryKey}>Activity</Text>
+                <Text style={styles.summaryValue}>{selectedActivity?.sportLabel || '—'}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryKey}>Court</Text>
+                <Text style={styles.summaryValue}>{selectedCourt?.name || '—'}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryKey}>Date & time</Text>
+                <Text style={styles.summaryValue}>
+                  {selectedDateObj.dateSub} · {activeSlot.time}
+                </Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryKey}>Duration</Text>
+                <Text style={styles.summaryValue}>{effectiveDuration} min</Text>
+              </View>
+            </View>
+
+            <View style={styles.priceRows}>
+              <View style={styles.priceRow}>
+                <Text style={styles.priceKey}>Credits required</Text>
+                <View style={styles.priceValueRow}>
+                  <Text style={styles.priceValue}>{requiredCredits}</Text>
+                  <CreditIcon size={13} />
+                </View>
+              </View>
+              <View style={styles.priceRow}>
+                <Text style={styles.priceKey}>Available balance</Text>
+                <View style={styles.priceValueRow}>
+                  <Text style={styles.priceValue}>{userCreditBalance}</Text>
+                  <CreditIcon size={13} />
+                </View>
+              </View>
+              <View style={[styles.priceRow, styles.priceRowTotal]}>
+                <Text style={styles.priceTotalKey}>Balance after booking</Text>
+                <View style={styles.priceValueRow}>
+                  <Text style={styles.priceTotalValue}>
                     {Math.max(0, userCreditBalance - requiredCredits)}
                   </Text>
                   <CreditIcon size={15} />
                 </View>
               </View>
-
-              {!isActivityIncluded && (
-                <View style={styles.warningBanner}>
-                  <Ionicons name="warning" size={15} color={COLORS.error} />
-                  <Text style={styles.warningText}>
-                    {selectedActivity?.sportLabel} is not covered in your current pass. Visit reception to upgrade.
-                  </Text>
-                </View>
-              )}
-
-              {!isBalanceSufficient && isActivityIncluded && (
-                <View style={styles.warningBanner}>
-                  <Ionicons name="alert-circle" size={15} color={COLORS.error} />
-                  <Text style={styles.warningText}>
-                    Insufficient credits ({userCreditBalance} available, {requiredCredits} required). Top up at reception.
-                  </Text>
-                </View>
-              )}
             </View>
+
+            {!isActivityIncluded && (
+              <View style={styles.warningBanner}>
+                <Ionicons name="warning-outline" size={14} color={COLORS.error} />
+                <Text style={styles.warningText}>
+                  {selectedActivity?.sportLabel} is not covered by your current pass. Visit reception to upgrade.
+                </Text>
+              </View>
+            )}
+
+            {!isBalanceSufficient && isActivityIncluded && (
+              <View style={styles.warningBanner}>
+                <Ionicons name="alert-circle-outline" size={14} color={COLORS.error} />
+                <Text style={styles.warningText}>
+                  Insufficient credits ({userCreditBalance} available, {requiredCredits} required). Top up at reception.
+                </Text>
+              </View>
+            )}
           </View>
         </Animated.View>
+          </Animated.View>
+        )}
       </ScrollView>
 
-      {/* ── Sticky Bottom Swipe Dock ── */}
-      <View
-        style={[
-          styles.fixedFooter,
-          { paddingBottom: Math.max(insets.bottom, 12) },
-        ]}
-      >
-        <SwipeToBook
-          onSwipeComplete={handleConfirmSwipe}
-          disabled={!isBookingAllowed}
-          isSubmitting={isSubmitting}
-          requiredCredits={requiredCredits}
-          disabledReason={bookingBlockedReason}
-        />
+      {/* Sticky bottom action bar — always visible, never scrolls away. */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        {step === 1 ? (
+          <TouchableOpacity
+            style={styles.continueBtn}
+            onPress={() => setStep(2)}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.continueText}>CONTINUE · TIME & COURT</Text>
+            <Ionicons name="arrow-forward" size={16} color={COLORS.onPrimary} />
+          </TouchableOpacity>
+        ) : (
+          <>
+            <Text style={styles.swipeHint}>
+              {isBookingAllowed
+                ? 'Review your session, then swipe to confirm.'
+                : bookingBlockedReason
+                  ? bookingBlockedReason.replace(/_/g, ' ').toLowerCase()
+                  : 'Choose a court and time to continue.'}
+            </Text>
+            <SwipeToBook
+              onSwipeComplete={handleConfirmSwipe}
+              disabled={!isBookingAllowed}
+              isSubmitting={isSubmitting}
+              requiredCredits={requiredCredits}
+              disabledReason={bookingBlockedReason}
+            />
+          </>
+        )}
       </View>
     </View>
   );
@@ -1120,28 +1094,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: SPACING.containerPadding,
-    paddingBottom: 10,
-  },
-  topBarTitle: {
-    fontSize: 12,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.8,
   },
   liveChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
     height: 32,
-    borderRadius: RADIUS.full,
-    backgroundColor: '#1F1F1F',
+    paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
   },
   liveDot: {
     width: 6,
@@ -1149,35 +1113,81 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   liveText: {
-    fontSize: 9,
+    color: COLORS.paper,
     fontFamily: FONTS.extraBold,
-    color: '#FFFFFF',
-    letterSpacing: 1,
+    fontSize: 9,
+    letterSpacing: 0.8,
   },
   scrollContent: {
     paddingHorizontal: SPACING.containerPadding,
     paddingTop: 4,
   },
-
-  // ── Venue & Pass Banner Card ──
-  venueBannerCard: {
-    backgroundColor: '#181818',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    ...SHADOWS.card,
+  sessionHero: {
+    paddingTop: 4,
   },
-  venueTopRow: {
+  sessionTitle: {
+    marginTop: 6,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 42,
+    lineHeight: 39,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  planChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
+  },
+  planDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+  },
+  planChipCopy: {
+    minWidth: 0,
+    gap: 1,
+  },
+  planChipName: {
+    color: COLORS.paper,
+    fontFamily: FONTS.bold,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  planChipMeta: {
+    color: COLORS.muted,
+    fontFamily: FONTS.semiBold,
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  venueCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    marginTop: 18,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
   },
   venueThumb: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    backgroundColor: '#252528',
+    width: 48,
+    height: 48,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surfaceBright,
   },
   venueThumbFallback: {
     alignItems: 'center',
@@ -1185,270 +1195,229 @@ const styles = StyleSheet.create({
   },
   venueMetaCol: {
     flex: 1,
+    minWidth: 0,
   },
   venueName: {
-    fontSize: 16,
+    color: COLORS.paper,
     fontFamily: FONTS.bold,
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
+    fontSize: 14,
+    lineHeight: 19,
   },
   venueAddr: {
-    fontSize: 11.5,
-    fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
     marginTop: 2,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 10.5,
+    lineHeight: 14,
   },
   balanceBadge: {
-    backgroundColor: '#222226',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
     alignItems: 'flex-end',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    gap: 2,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surfaceBright,
   },
   balanceBadgeLabel: {
-    fontSize: 8,
+    color: COLORS.meta,
     fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.1,
+    fontSize: 7.5,
+    letterSpacing: 0.8,
+  },
+  balanceBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
   balanceBadgeVal: {
-    fontSize: 16,
-    fontFamily: FONTS.black,
-    marginTop: 1,
+    fontFamily: FONTS.display,
+    fontSize: 18,
+    lineHeight: 18,
   },
-  passInlineBar: {
+  sessionStep: {
+    marginTop: 26,
+  },
+  stepHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 10,
-    paddingTop: 9,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.08)',
-  },
-  passInlineLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  passInlineText: {
-    fontSize: 11.5,
-    fontFamily: FONTS.semiBold,
-    color: COLORS.secondary,
-  },
-  passInlineExp: {
-    fontSize: 9.5,
-    fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
-    letterSpacing: 0.8,
-  },
-
-  // ── Section Headers ──
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 20,
+    gap: 8,
     marginBottom: 10,
   },
-  stepLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepPill: {
-    backgroundColor: 'rgba(255,90,31,0.16)',
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,90,31,0.45)',
-  },
-  stepPillText: {
-    fontSize: 9.5,
-    fontFamily: FONTS.black,
+  stepNumber: {
     color: COLORS.primary,
-    letterSpacing: 0.6,
+    fontFamily: FONTS.display,
+    fontSize: 20,
+    lineHeight: 20,
+    letterSpacing: 0.5,
   },
-  sectionTitle: {
-    fontSize: 11.5,
-    fontFamily: FONTS.extraBold,
-    color: '#FFFFFF',
-    letterSpacing: 1.3,
+  stepTitle: {
+    flex: 1,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 24,
+    lineHeight: 23,
+    letterSpacing: 0.35,
+    textTransform: 'uppercase',
   },
-  sectionRightMeta: {
-    fontSize: 9.5,
+  stepMeta: {
+    color: COLORS.meta,
     fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
-    letterSpacing: 1,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
-
-  // ── Step 01: Date Dock ──
-  dateDock: {
+  dateGrid: {
     flexDirection: 'row',
     gap: 8,
-    backgroundColor: '#181818',
-    padding: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
   },
-  dateTile: {
+  dateOption: {
     flex: 1,
-    borderRadius: 10,
+    gap: 3,
+    minHeight: 70,
     paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  dateTileActive: {
-    backgroundColor: COLORS.primary,
-    ...SHADOWS.ember,
-  },
-  dateDayTag: {
-    fontSize: 9,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.1,
-  },
-  dateDayTagActive: {
-    color: 'rgba(10,5,3,0.75)',
-  },
-  dateNum: {
-    fontSize: 22,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-    marginTop: 1,
-  },
-  dateNumActive: {
-    color: COLORS.onPrimary,
-  },
-  dateMon: {
-    fontSize: 9,
-    fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.2,
-  },
-  dateMonActive: {
-    color: 'rgba(10,5,3,0.75)',
-  },
-
-  // ── Step 02: Sport & Duration ──
-  durationMiniSwitch: {
-    flexDirection: 'row',
-    backgroundColor: '#181818',
-    borderRadius: RADIUS.full,
-    padding: 2,
+    paddingLeft: 12,
+    paddingRight: 30,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surface,
   },
-  durationMiniPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  durationMiniPillActive: {
-    backgroundColor: COLORS.primary,
-  },
-  durationMiniText: {
-    fontSize: 9.5,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 0.8,
-  },
-  durationMiniTextActive: {
-    color: COLORS.onPrimary,
-  },
-  sportScroll: {
-    gap: 10,
-    paddingRight: 4,
-  },
-  sportCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#181818',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    minWidth: 148,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  sportCardActive: {
-    backgroundColor: '#24150E',
+  optionSelected: {
     borderColor: COLORS.primary,
+    backgroundColor: '#17110D',
   },
-  sportMedallion: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#252529',
+  dateOptionLabel: {
+    color: COLORS.muted,
+    fontFamily: FONTS.bold,
+    fontSize: 8.5,
+    lineHeight: 11,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  dateOptionDate: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 23,
+    lineHeight: 23,
+    letterSpacing: 0.3,
+  },
+  dateOptionMonth: {
+    fontSize: 16,
+    color: COLORS.muted,
+  },
+  optionCheck: {
+    position: 'absolute',
+    top: 9,
+    right: 9,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: COLORS.line,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sportMedallionActive: {
+  optionCheckActive: {
+    borderColor: COLORS.primary,
     backgroundColor: COLORS.primary,
   },
-  sportCardName: {
-    fontSize: 12.5,
-    fontFamily: FONTS.extraBold,
-    color: '#CBCBCB',
-    letterSpacing: 0.5,
+  durationSwitch: {
+    flexDirection: 'row',
+    padding: 2,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
   },
-  sportRateRow: {
+  durationPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+  },
+  durationPillActive: {
+    backgroundColor: COLORS.primary,
+  },
+  durationText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    letterSpacing: 0.4,
+  },
+  durationTextActive: {
+    color: COLORS.onPrimary,
+  },
+  activityGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  activityOption: {
+    width: '48.5%',
+    justifyContent: 'space-between',
+    gap: 10,
+    minHeight: 84,
+    padding: 12,
+    paddingRight: 34,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
+  },
+  activityOptionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activityOptionName: {
+    color: COLORS.paper,
+    fontFamily: FONTS.bold,
+    fontSize: 13.5,
+    lineHeight: 18,
+  },
+  activityPriceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
     marginTop: 2,
   },
-  sportRateNum: {
-    fontSize: 12,
-    fontFamily: FONTS.black,
+  activityPrice: {
+    color: COLORS.primary,
+    fontFamily: FONTS.display,
+    fontSize: 21,
+    lineHeight: 21,
   },
-  sportRateUnit: {
-    fontSize: 9.5,
-    fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
+  activityPriceUnit: {
+    color: COLORS.muted,
+    fontFamily: FONTS.semiBold,
+    fontSize: 8.5,
   },
-
-  // ── Step 03: Time Deck Card (Period Tabs + 3-Col Grid) ──
   hideFullBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 9,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: RADIUS.full,
-    backgroundColor: '#181818',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.full,
   },
   hideFullBtnActive: {
-    backgroundColor: 'rgba(255,90,31,0.14)',
-    borderColor: 'rgba(255,90,31,0.45)',
+    borderColor: COLORS.primaryBorder,
+    backgroundColor: COLORS.primaryMuted,
   },
-  hideFullBtnText: {
-    fontSize: 8.5,
+  hideFullText: {
+    color: COLORS.muted,
     fontFamily: FONTS.extraBold,
-    letterSpacing: 0.9,
+    fontSize: 8,
+    letterSpacing: 0.6,
   },
-  timeDeckCard: {
-    backgroundColor: '#181818',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-  },
-  periodTabBar: {
+  periodTabs: {
     flexDirection: 'row',
-    gap: 6,
-    backgroundColor: '#121214',
+    gap: 4,
     padding: 4,
-    borderRadius: 11,
     marginBottom: 12,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surface,
   },
   periodTab: {
     flex: 1,
@@ -1457,339 +1426,364 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 5,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: RADIUS.sm,
   },
   periodTabActive: {
     backgroundColor: COLORS.primary,
   },
   periodTabText: {
-    fontSize: 9.5,
+    color: COLORS.muted,
     fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 0.7,
+    fontSize: 9,
+    letterSpacing: 0.6,
   },
   periodTabTextActive: {
     color: COLORS.onPrimary,
   },
-  periodCountBadge: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  periodTabCount: {
+    color: COLORS.meta,
+    fontFamily: FONTS.extraBold,
+    fontSize: 8,
   },
-  periodCountBadgeActive: {
-    backgroundColor: 'rgba(10,5,3,0.22)',
-  },
-  periodCountText: {
-    fontSize: 8.5,
-    fontFamily: FONTS.black,
-    color: COLORS.textMuted,
-  },
-  periodCountTextActive: {
-    color: COLORS.onPrimary,
+  periodTabCountActive: {
+    color: 'rgba(10,11,13,0.6)',
   },
   timeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  timeTile: {
-    width: '31.4%',
-    backgroundColor: '#222226',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
-  timeTileSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-    ...SHADOWS.ember,
-  },
-  timeTileDisabled: {
-    opacity: 0.35,
-  },
-  timeTileClock: {
-    fontSize: 12.5,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-  },
-  timeTileClockSelected: {
-    color: COLORS.onPrimary,
-  },
-  timeTileClockDisabled: {
-    color: COLORS.textMuted,
-  },
-  timeTileSubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  timeTileDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  timeTileSub: {
-    fontSize: 8.5,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 0.6,
-  },
-  timeTileSubSelected: {
-    color: 'rgba(10,5,3,0.8)',
-  },
-  emptyPeriodBox: {
-    paddingVertical: 22,
-    alignItems: 'center',
-    gap: 6,
-  },
-  emptyPeriodText: {
-    fontSize: 12,
-    fontFamily: FONTS.medium,
-    color: COLORS.textMuted,
-  },
-
-  // ── Step 04: Court Grid ──
-  atTimeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,90,31,0.14)',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,90,31,0.45)',
-  },
-  atTimeBadgeText: {
-    fontSize: 9.5,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.primary,
-    letterSpacing: 0.8,
-  },
-  courtGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  courtTile: {
-    width: '48.3%',
-    backgroundColor: '#181818',
-    borderRadius: 13,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  courtTileSelected: {
-    backgroundColor: '#24150E',
-    borderColor: COLORS.primary,
-  },
-  courtTileFull: {
-    opacity: 0.45,
-  },
-  courtTileTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  courtTileName: {
-    flex: 1,
-    fontSize: 13.5,
-    fontFamily: FONTS.bold,
-    color: '#CBCBCB',
-  },
-  courtRadio: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.25)',
+  timeSlot: {
+    width: '31.5%',
+    minHeight: 58,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surface,
   },
-  courtRadioSelected: {
+  timeSlotSelected: {
     borderColor: COLORS.primary,
-  },
-  courtRadioInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
     backgroundColor: COLORS.primary,
   },
-  courtCapRow: {
-    marginTop: 8,
+  timeSlotDisabled: {
+    borderStyle: 'dashed',
+    backgroundColor: 'transparent',
+    opacity: 0.65,
   },
-  courtCapText: {
-    fontSize: 9,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 0.8,
+  timeSlotClock: {
+    color: COLORS.paper,
+    fontFamily: FONTS.bold,
+    fontSize: 11.5,
+    lineHeight: 15,
   },
-  courtMeterTrack: {
+  timeSlotClockDisabled: {
+    color: COLORS.meta,
+    textDecorationLine: 'line-through',
+  },
+  timeSlotDot: {
+    width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    marginTop: 6,
-    overflow: 'hidden',
   },
-  courtMeterFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-
-  // ── Boarding-Pass Summary Ticket ──
-  ticketCard: {
-    marginTop: 22,
-    borderRadius: 16,
-    backgroundColor: '#181818',
-    borderWidth: 1,
-    borderColor: 'rgba(255,122,61,0.28)',
-    overflow: 'hidden',
-  },
-  ticketTopStub: {
-    padding: 16,
-  },
-  ticketHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  ticketPassLabel: {
-    fontSize: 8.5,
+  timeSlotSub: {
+    color: COLORS.muted,
     fontFamily: FONTS.extraBold,
-    color: COLORS.secondary,
-    letterSpacing: 1.4,
+    fontSize: 7.5,
+    lineHeight: 9,
+    letterSpacing: 0.4,
   },
-  ticketSportTitle: {
-    fontSize: 17,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-    marginTop: 2,
+  emptyPeriod: {
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 22,
   },
-  ticketDurationBadge: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
+  emptyPeriodText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
   },
-  ticketDurationText: {
-    fontSize: 9.5,
-    fontFamily: FONTS.extraBold,
-    color: '#FFFFFF',
-    letterSpacing: 0.8,
+  courtList: {
+    gap: 8,
   },
-  ticketMetaGrid: {
+  courtOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 14,
-    backgroundColor: 'rgba(10,10,12,0.45)',
-    borderRadius: 10,
+    gap: 12,
+    minHeight: 66,
     paddingVertical: 10,
     paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
   },
-  ticketMetaCell: {
-    flex: 1,
+  courtOptionFull: {
+    borderColor: COLORS.lineSoft,
+    backgroundColor: 'transparent',
   },
-  ticketMetaDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    marginHorizontal: 10,
-  },
-  ticketMetaKey: {
-    fontSize: 8,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.1,
-  },
-  ticketMetaVal: {
-    fontSize: 12.5,
-    fontFamily: FONTS.extraBold,
-    color: '#FFFFFF',
-    marginTop: 2,
-  },
-  ticketPerforation: {
+  courtCheck: {
     position: 'relative',
-    justifyContent: 'center',
-    height: 16,
-    backgroundColor: '#161618',
+    top: undefined,
+    right: undefined,
+    marginLeft: 2,
   },
-  dashedLine: {
-    borderTopWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(255,255,255,0.14)',
-    marginHorizontal: 14,
+  courtCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
-  notch: {
-    position: 'absolute',
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: COLORS.background,
+  courtName: {
+    color: COLORS.paper,
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    lineHeight: 19,
   },
-  notchLeft: {
-    left: -8,
+  courtMeta: {
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 10,
+    lineHeight: 14,
   },
-  notchRight: {
-    right: -8,
+  courtSlots: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
-  ticketBottomStub: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#151518',
+  summaryCard: {
+    gap: 12,
+    marginTop: 28,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.panel,
+    backgroundColor: COLORS.surface,
   },
-  ledgerRow: {
+  summaryHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  ledgerLabel: {
-    fontSize: 12,
-    fontFamily: FONTS.medium,
-    color: COLORS.textMuted,
+  summaryTitle: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 24,
+    lineHeight: 23,
+    letterSpacing: 0.35,
+    textTransform: 'uppercase',
   },
-  ledgerVal: {
-    fontSize: 15,
-    fontFamily: FONTS.black,
+  summaryStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.full,
+  },
+  summaryStatusReady: {
+    borderColor: 'rgba(123,217,154,0.28)',
+    backgroundColor: 'rgba(123,217,154,0.08)',
+  },
+  summaryStatusText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 8.5,
+    letterSpacing: 0.6,
+  },
+  summaryRows: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lineSoft,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lineSoft,
+  },
+  summaryKey: {
+    color: COLORS.muted,
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  summaryValue: {
+    flexShrink: 1,
+    color: COLORS.paperDim,
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'right',
+  },
+  priceRows: {
+    gap: 6,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  priceRowTotal: {
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lineSoft,
+  },
+  priceKey: {
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  priceValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  priceValue: {
+    color: COLORS.paperDim,
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+  },
+  priceTotalKey: {
+    color: COLORS.paper,
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+  },
+  priceTotalValue: {
+    color: COLORS.primary,
+    fontFamily: FONTS.display,
+    fontSize: 28,
+    lineHeight: 27,
   },
   warningBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 7,
     padding: 10,
-    borderRadius: 10,
     borderWidth: 1,
-    marginTop: 10,
-    backgroundColor: 'rgba(243,114,127,0.10)',
-    borderColor: 'rgba(243,114,127,0.30)',
+    borderColor: 'rgba(243,114,127,0.3)',
+    borderRadius: RADIUS.sm,
+    backgroundColor: 'rgba(243,114,127,0.08)',
   },
   warningText: {
     flex: 1,
-    fontSize: 11,
-    fontFamily: FONTS.medium,
     color: COLORS.error,
+    fontFamily: FONTS.medium,
+    fontSize: 10.5,
     lineHeight: 16,
   },
-
-  // ── Fixed Footer ──
-  fixedFooter: {
+  stepProgress: {
+    gap: 8,
+    marginTop: 18,
+    marginBottom: 4,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
+  },
+  stepProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stepProgressStep: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 1,
+  },
+  stepProgressLabel: {
+    color: COLORS.meta,
+    fontFamily: FONTS.bold,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.7,
+  },
+  stepProgressTrack: {
+    height: 6,
+    overflow: 'hidden',
+    borderRadius: 3,
+    backgroundColor: COLORS.line,
+  },
+  stepProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: COLORS.primary,
+  },
+  bigBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 56,
+    marginTop: 14,
+    paddingHorizontal: 12,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.primary,
+  },
+  bigBackCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
+  },
+  bigBackText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 12,
+    lineHeight: 15,
+    letterSpacing: 0.7,
+  },
+  bigBackSub: {
+    color: 'rgba(10,11,13,0.65)',
+    fontFamily: FONTS.bold,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 0.3,
+  },
+  bottomBar: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
+    gap: 10,
     paddingHorizontal: SPACING.containerPadding,
-    paddingTop: 10,
-    backgroundColor: 'rgba(18,18,18,0.96)',
+    paddingTop: 12,
+    backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: COLORS.line,
     zIndex: 100,
+  },
+  continueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 54,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary,
+  },
+  continueText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 12,
+    lineHeight: 15,
+    letterSpacing: 0.6,
+  },
+  swipeHint: {
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'center',
   },
 });

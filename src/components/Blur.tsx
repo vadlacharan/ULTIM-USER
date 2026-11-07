@@ -36,7 +36,7 @@ export const GlassBlur: React.FC<{
       blurType="systemUltraThinMaterialDark"
       blurAmount={isIOS ? Math.min(blurAmount, 24) : Math.min(blurAmount, 18)}
       blurRounds={isIOS ? 3 : 2}
-      reducedTransparencyFallbackColor="#101013"
+      reducedTransparencyFallbackColor="#0A0B0D"
       style={style ?? StyleSheet.absoluteFill}
     />
   );
@@ -72,16 +72,16 @@ export const ProgressiveBlur: React.FC<ProgressiveBlurProps> = ({
   // two versions read the same.
   const scrimColors: [string, string, string, string] = IS_EXPO_GO
     ? [
-        'rgba(6,6,8,0.92)',
-        'rgba(8,8,10,0.66)',
-        'rgba(10,10,12,0.28)',
-        'rgba(10,10,12,0)',
+        'rgba(10,11,13,0.96)',
+        'rgba(10,11,13,0.80)',
+        'rgba(10,11,13,0.36)',
+        'rgba(10,11,13,0)',
       ]
     : [
-        'rgba(6,6,8,0.72)',
-        'rgba(8,8,10,0.44)',
-        'rgba(10,10,12,0.16)',
-        'rgba(10,10,12,0)',
+        'rgba(10,11,13,0.86)',
+        'rgba(10,11,13,0.62)',
+        'rgba(10,11,13,0.24)',
+        'rgba(10,11,13,0)',
       ];
 
   return (
@@ -93,8 +93,8 @@ export const ProgressiveBlur: React.FC<ProgressiveBlurProps> = ({
           blurRounds={Platform.OS === 'ios' ? 3 : 2}
           direction="blurredTopClearBottom"
           startOffset={startOffset}
-          overlayColor="rgba(8,8,10,0.18)"
-          reducedTransparencyFallbackColor="#0B0B0D"
+          overlayColor="rgba(10,11,13,0.20)"
+          reducedTransparencyFallbackColor="#0A0B0D"
           style={StyleSheet.absoluteFill}
         />
       )}
@@ -196,9 +196,10 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   title: {
-    fontSize: 21,
-    fontFamily: FONTS.bold,
-    letterSpacing: -0.4,
-    lineHeight: 26,
+    fontSize: 22,
+    fontFamily: FONTS.display,
+    letterSpacing: 0.5,
+    lineHeight: 24,
+    textTransform: 'uppercase',
   },
 });

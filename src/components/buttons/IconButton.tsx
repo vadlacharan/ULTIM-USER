@@ -35,8 +35,8 @@ export const IconButton: React.FC<IconButtonProps> = ({
   iconSize,
   iconColor,
   gradientColors,
-  backgroundColor = 'transparent',
-  borderColor,
+  backgroundColor = COLORS.surface,
+  borderColor = COLORS.line,
   disabled = false,
   style,
 }) => {

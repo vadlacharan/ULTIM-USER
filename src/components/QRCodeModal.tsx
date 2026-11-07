@@ -18,7 +18,8 @@ import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { Booking } from '../types';
 import { api } from '../services/api';
 import { useApp } from '../context/AppContext';
-import { IconButton } from './buttons';
+import { Eyebrow, RoundIconButton } from './ArenaUI';
+import { formatClock, formatDateLong } from '../utils/display';
 
 /**
  * Single-Path SVG QR Code component 100% compliant with React 19 & Hermes compiler.
@@ -61,7 +62,7 @@ const PureSVGQRCode: React.FC<{ value: string; size: number }> = ({ value, size 
         if (r === 6 || c === 6) continue;
 
         const val = Math.abs(Math.sin((r + 1) * (c + 1) * hash) * 10000);
-        grid[r][c] = (Math.floor(val) % 2) === 0;
+        grid[r][c] = Math.floor(val) % 2 === 0;
       }
     }
 
@@ -81,8 +82,8 @@ const PureSVGQRCode: React.FC<{ value: string; size: number }> = ({ value, size 
 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <Rect width={size} height={size} fill="#FFFFFF" rx={8} />
-      <Path d={pathData} fill="#0A0A0B" />
+      <Rect width={size} height={size} fill="#FFFFFF" rx={6} />
+      <Path d={pathData} fill="#0A0B0D" />
     </Svg>
   );
 };
@@ -94,19 +95,13 @@ interface QRCodeModalProps {
 }
 
 export const QRCodeModal: React.FC<QRCodeModalProps> = ({ visible, booking, onClose }) => {
-  const { colors } = useApp();
+  const { colors, facilities } = useApp();
   const insets = useSafeAreaInsets();
-  if (!booking) return null;
-
-  const qrMode = booking.qrMode || 'CHECK_IN';
-
-  const [token, setToken] = useState<string>(booking.qrCodePayload || 'ULTIM-PASS-TOKEN');
+  const [token, setToken] = useState<string>(booking?.qrCodePayload || 'ULTIM-PASS-TOKEN');
   const [isRefreshingToken, setIsRefreshingToken] = useState<boolean>(false);
 
   useEffect(() => {
-    if (booking?.qrCodePayload) {
-      setToken(booking.qrCodePayload);
-    }
+    if (booking?.qrCodePayload) setToken(booking.qrCodePayload);
   }, [booking]);
 
   useEffect(() => {
@@ -117,14 +112,19 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ visible, booking, onCl
     return () => clearInterval(timer);
   }, [visible, booking]);
 
+  if (!booking) return null;
+
+  const qrMode = booking.qrMode || 'CHECK_IN';
+  const facility = facilities.find(
+    (f) => String(f.id) === String(booking.facilityId) || f.name === booking.facilityName
+  );
+
   const refreshQrToken = async () => {
     if (!booking) return;
     try {
       setIsRefreshingToken(true);
       const res = await api.generateBookingQr(booking.id);
-      if (res?.token) {
-        setToken(res.token);
-      }
+      if (res?.token) setToken(res.token);
     } catch (e) {
       console.log('[QR Refresh Error]', e);
     } finally {
@@ -132,15 +132,15 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ visible, booking, onCl
     }
   };
 
-  const { facilities } = useApp();
-  const facility = facilities.find((f) => String(f.id) === String(booking?.facilityId) || f.name === booking?.facilityName);
-
   const handleGetDirections = () => {
-    if (!booking) return;
-
     let lat = facility?.latitude;
     let lng = facility?.longitude;
-    if ((lat === undefined || lng === undefined) && facility?.rawLocation && Array.isArray(facility.rawLocation) && facility.rawLocation.length >= 2) {
+    if (
+      (lat === undefined || lng === undefined) &&
+      facility?.rawLocation &&
+      Array.isArray(facility.rawLocation) &&
+      facility.rawLocation.length >= 2
+    ) {
       lng = facility.rawLocation[0];
       lat = facility.rawLocation[1];
     }
@@ -148,29 +148,29 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ visible, booking, onCl
     let url: string;
     if (lat !== undefined && lng !== undefined && !isNaN(lat) && !isNaN(lng)) {
       const label = encodeURIComponent(booking.facilityName || 'Facility');
-      url = Platform.select({
-        ios: `maps:0,0?q=${label}@${lat},${lng}`,
-        android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
-        web: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-      }) || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+      url =
+        Platform.select({
+          ios: `maps:0,0?q=${label}@${lat},${lng}`,
+          android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
+          web: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+        }) || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
     } else {
       const query = encodeURIComponent(`${booking.facilityName}, ${booking.facilityAddress}`);
-      url = Platform.select({
-        ios: `maps:0,0?q=${query}`,
-        android: `geo:0,0?q=${query}`,
-        web: `https://www.google.com/maps/search/?api=1&query=${query}`,
-      }) || `https://www.google.com/maps/search/?api=1&query=${query}`;
+      url =
+        Platform.select({
+          ios: `maps:0,0?q=${query}`,
+          android: `geo:0,0?q=${query}`,
+          web: `https://www.google.com/maps/search/?api=1&query=${query}`,
+        }) || `https://www.google.com/maps/search/?api=1&query=${query}`;
     }
 
     Linking.openURL(url).catch(() => {
-      if (lat !== undefined && lng !== undefined) {
-        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
-      } else {
-        const query = encodeURIComponent(`${booking.facilityName}, ${booking.facilityAddress}`);
-        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
-      }
+      const query = encodeURIComponent(`${booking.facilityName}, ${booking.facilityAddress}`);
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
     });
   };
+
+  const bookingId = `BK-${String(booking.id).slice(-6).toUpperCase()}`;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -178,117 +178,106 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ visible, booking, onCl
         <Pressable
           style={[
             styles.modalContent,
-            {
-              backgroundColor: 'rgba(12,12,16,0.96)',
-              paddingBottom: Math.max(insets.bottom, SPACING.md),
-            },
+            { paddingBottom: Math.max(insets.bottom, SPACING.md) },
           ]}
           onPress={() => {}}
         >
+          <View style={styles.grabber} />
           <ScrollView
             style={styles.modalScroll}
             contentContainerStyle={styles.modalScrollContent}
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-            {/* Header */}
             <View style={styles.modalHeader}>
               <View style={styles.titleContainer}>
-                <Text style={[styles.modalTitle, { color: colors.onSurface }]}> 
-                  {qrMode === 'CHECK_OUT' ? 'Check-Out QR Pass' : 'Check-In QR Pass'}
+                <Eyebrow>Entry pass</Eyebrow>
+                <Text style={styles.modalTitle}>
+                  {qrMode === 'CHECK_OUT' ? 'Check-out pass' : 'Booking pass'}
                 </Text>
-                <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}> 
+                <Text style={styles.modalSubtitle}>
                   {qrMode === 'CHECK_OUT'
-                    ? 'Present at reception desk to complete your session exit'
-                    : 'Present at reception desk for instant entry'}
+                    ? 'Show this at reception to complete your session.'
+                    : 'Show this at reception for instant entry.'}
                 </Text>
               </View>
-              <IconButton
-                icon="close"
-                onPress={onClose}
-                size={32}
-                iconSize={24}
-                iconColor={colors.onSurface}
-              />
+              <RoundIconButton icon="close" onPress={onClose} color={COLORS.paper} />
             </View>
 
-            {/* QR Container */}
-            <View
-              style={[
-                styles.qrCard,
-                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-              ]}
-            >
-              <View style={styles.qrHeaderTag}>
-                <Text style={[styles.qrTagText, { color: colors.primary }]}> 
-                  {qrMode === 'CHECK_OUT' ? 'SESSION CHECK-OUT' : 'CONFIRMED SESSION'}
-                </Text>
-              </View>
-
-              {/* SINGLE-PATH REACT 19 COMPLIANT SVG QR CODE */}
+            <View style={styles.qrPaper}>
               <View style={styles.qrSvgWrapper}>
                 {isRefreshingToken ? (
                   <View style={styles.qrLoadingBox}>
-                    <ActivityIndicator size="large" color={colors.primary} />
+                    <ActivityIndicator size="large" color={COLORS.primary} />
                   </View>
                 ) : (
                   <PureSVGQRCode value={token} size={190} />
                 )}
               </View>
-
-              {/* 16-Character Hex Token Code */}
-              <Text style={[styles.codeText, { color: colors.primary }]}>{token}</Text>
+              <Text style={styles.qrCodeLabel}>HEXADECIMAL ENTRY CODE</Text>
+              <Text style={styles.codeText}>{token}</Text>
             </View>
 
-            {/* Session Details */}
-            <View
-              style={[
-                styles.detailsCard,
-                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-              ]}
-            >
-              <TouchableOpacity onPress={handleGetDirections} activeOpacity={0.8}>
-                <Text style={[styles.facilityName, { color: colors.onSurface }]}>
-                  {booking.facilityName}
-                </Text>
-                <Text style={[styles.facilityAddress, { color: colors.textMuted }]}>
-                  {booking.facilityAddress}
-                </Text>
-                <View style={styles.directionsRow}>
-                  <Ionicons name="navigate-outline" size={12} color={colors.primary} />
-                  <Text style={[styles.directionsText, { color: colors.primary }]}>
-                    GET DIRECTIONS
+            <View style={styles.detailsCard}>
+              <View style={styles.statusRow}>
+                <View style={styles.statusPill}>
+                  <View style={styles.statusDot} />
+                  <Text style={styles.statusText}>
+                    {qrMode === 'CHECK_OUT' ? 'CHECK-OUT' : 'CONFIRMED'}
                   </Text>
+                </View>
+                <Text style={styles.bookingId}>{bookingId}</Text>
+              </View>
+
+              <Text style={styles.bookingTitle}>
+                {(booking.sportType || 'Session').toUpperCase()} · {booking.courtName}
+              </Text>
+
+              <TouchableOpacity onPress={handleGetDirections} activeOpacity={0.75}>
+                <View style={styles.venueRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.facilityName}>{booking.facilityName}</Text>
+                    <Text style={styles.facilityAddress} numberOfLines={2}>
+                      {booking.facilityAddress}
+                    </Text>
+                  </View>
+                  <View style={styles.directionChip}>
+                    <Ionicons name="navigate-outline" size={14} color={COLORS.primary} />
+                  </View>
                 </View>
               </TouchableOpacity>
 
-              <View style={[styles.infoDivider, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
+              <View style={styles.detailsDivider} />
 
-              <View style={styles.row}>
-                <View style={styles.col}>
-                  <Text style={[styles.label, { color: colors.textMuted }]}>SPORT / ZONE</Text>
-                  <Text style={[styles.value, { color: colors.onSurface }]}>{booking.sportType}</Text>
-                </View>
-                <View style={styles.col}>
-                  <Text style={[styles.label, { color: colors.textMuted }]}>COURT / FLOOR</Text>
-                  <Text style={[styles.value, { color: colors.onSurface }]}>{booking.courtName}</Text>
-                </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailKey}>Date & time</Text>
+                <Text style={styles.detailValue}>
+                  {formatDateLong(booking.dateStr)} ·{' '}
+                  {(booking.timeSlotLabel || '').match(/^\d{1,2}:\d{2}/)
+                    ? formatClock((booking.timeSlotLabel || '').slice(0, 5))
+                    : booking.timeSlotLabel}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailKey}>Session</Text>
+                <Text style={styles.detailValue}>{booking.durationMins} minutes</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailKey}>Credits</Text>
+                <Text style={styles.detailValue}>{booking.creditsSpent}</Text>
               </View>
 
-              <View style={[styles.row, { marginTop: 12 }]}>
-                <View style={styles.col}>
-                  <Text style={[styles.label, { color: colors.textMuted }]}>DATE</Text>
-                  <Text style={[styles.value, { color: colors.onSurface }]}>{booking.dateStr}</Text>
-                </View>
-                <View style={styles.col}>
-                  <Text style={[styles.label, { color: colors.textMuted }]}>TIME SLOT</Text>
-                  <Text style={[styles.value, { color: colors.onSurface }]}> 
-                    {booking.timeSlotLabel}
-                  </Text>
-                </View>
-              </View>
+              <Text style={styles.qrNote}>
+                {qrMode === 'CHECK_OUT'
+                  ? 'Show this pass at reception when you leave.'
+                  : 'Show this pass at reception when you arrive.'}
+              </Text>
             </View>
           </ScrollView>
+
+          <TouchableOpacity onPress={onClose} activeOpacity={0.86} style={styles.doneButton}>
+            <Text style={styles.doneText}>DONE</Text>
+          </TouchableOpacity>
         </Pressable>
       </Pressable>
     </Modal>
@@ -298,15 +287,26 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ visible, booking, onCl
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0,0,0,0.74)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: RADIUS.xl,
-    borderTopRightRadius: RADIUS.xl,
-    paddingTop: SPACING.lg,
-    paddingHorizontal: SPACING.lg,
-    maxHeight: '90%',
+    paddingTop: 8,
+    paddingHorizontal: SPACING.containerPadding,
+    borderTopLeftRadius: RADIUS.panel,
+    borderTopRightRadius: RADIUS.panel,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.surface,
+    maxHeight: '92%',
+  },
+  grabber: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.line,
+    marginBottom: 16,
   },
   modalScroll: {
     flexShrink: 1,
@@ -316,57 +316,39 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: SPACING.md,
+    gap: 12,
+    marginBottom: 14,
   },
   titleContainer: {
     flex: 1,
   },
   modalTitle: {
-    fontSize: 20,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.3,
-    lineHeight: 26,
+    marginTop: 2,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 31,
+    lineHeight: 29,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   modalSubtitle: {
-    fontSize: 12,
+    marginTop: 4,
+    color: COLORS.muted,
     fontFamily: FONTS.regular,
-    lineHeight: 17,
-    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 16,
   },
-
-  qrCard: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
+  qrPaper: {
     alignItems: 'center',
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-  },
-  qrHeaderTag: {
-    backgroundColor: 'rgba(255, 90, 31, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-    marginBottom: SPACING.sm,
-  },
-  qrTagText: {
-    fontSize: 10,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 0.5,
+    padding: 16,
+    borderRadius: RADIUS.lg,
+    backgroundColor: '#FFFFFF',
   },
   qrSvgWrapper: {
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: RADIUS.lg,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    marginVertical: 4,
-    width: 214,
-    height: 214,
+    width: 198,
+    height: 198,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -376,59 +358,145 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  qrCodeLabel: {
+    marginTop: 8,
+    color: '#77726A',
+    fontFamily: FONTS.extraBold,
+    fontSize: 8,
+    lineHeight: 11,
+    letterSpacing: 1.1,
+  },
   codeText: {
-    fontSize: 14,
+    marginTop: 4,
+    color: '#0A0B0D',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontWeight: '900',
-    letterSpacing: 2,
-    marginTop: 10,
+    fontWeight: '700',
+    fontSize: 16,
+    lineHeight: 20,
+    letterSpacing: 1.5,
   },
   detailsCard: {
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
+    gap: 7,
+    marginTop: 14,
+    padding: 14,
     borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surfaceBright,
   },
-  facilityName: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  directionsRow: {
+  statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginTop: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(123,217,154,0.1)',
   },
-  directionsText: {
-    fontSize: 9.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.1,
+  statusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: COLORS.success,
   },
-  facilityAddress: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    lineHeight: 17,
-    marginTop: 2,
-  },
-  infoDivider: {
-    height: 1,
-    marginVertical: SPACING.xs,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  col: {
-    flex: 1,
-  },
-  label: {
-    fontSize: 9,
-    fontFamily: FONTS.semiBold,
+  statusText: {
+    color: COLORS.success,
+    fontFamily: FONTS.extraBold,
+    fontSize: 8.5,
     letterSpacing: 0.5,
   },
-  value: {
-    fontSize: 13,
+  bookingId: {
+    color: COLORS.muted,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontSize: 9,
+    letterSpacing: 0.4,
+  },
+  bookingTitle: {
+    color: COLORS.paper,
     fontFamily: FONTS.bold,
-    marginTop: 2,
+    fontSize: 17,
+    lineHeight: 23,
+    marginTop: 1,
+  },
+  venueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+  },
+  facilityName: {
+    color: COLORS.paperDim,
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  facilityAddress: {
+    marginTop: 1,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  directionChip: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.primaryBorder,
+    backgroundColor: COLORS.primaryMuted,
+  },
+  detailsDivider: {
+    height: 1,
+    marginVertical: 4,
+    backgroundColor: COLORS.lineSoft,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  detailKey: {
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  detailValue: {
+    flexShrink: 1,
+    color: COLORS.paperDim,
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    lineHeight: 15,
+    textAlign: 'right',
+  },
+  qrNote: {
+    marginTop: 4,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 10,
+    lineHeight: 15,
+  },
+  doneButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+    marginTop: 14,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary,
+  },
+  doneText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
 });

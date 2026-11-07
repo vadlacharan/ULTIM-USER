@@ -31,8 +31,13 @@ const MainTabNavigator = () => {
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: COLORS.background },
-        // Suspend background tabs so heavy screens stop re-rendering while
-        // the user is elsewhere — keeps page transitions smooth.
+        // Soft cross-fade between primary tabs. Heavy screens stay frozen
+        // off-screen so the fade never fights a re-render.
+        animation: 'fade',
+        transitionSpec: {
+          animation: 'timing',
+          config: { duration: 220 },
+        },
         freezeOnBlur: true,
       }}
     >
@@ -70,7 +75,7 @@ export const RootNavigator = () => {
         // Native spring push — buttery on both platforms, runs off the JS
         // thread so list scrolling never blocks the transition.
         animation: 'slide_from_right',
-        animationDuration: 260,
+        animationDuration: 340,
         gestureEnabled: true,
         fullScreenGestureEnabled: true,
         gestureDirection: 'horizontal',
@@ -82,31 +87,31 @@ export const RootNavigator = () => {
         <Stack.Screen
           name="Auth"
           component={AuthScreen}
-          options={{ animation: 'fade', animationDuration: 200 }}
+          options={{ animation: 'fade', animationDuration: 260 }}
         />
       ) : (
         <>
           <Stack.Screen
             name="MainTabs"
             component={MainTabNavigator}
-            options={{ animation: 'fade', animationDuration: 180 }}
+            options={{ animation: 'fade', animationDuration: 240 }}
           />
           <Stack.Screen name="FacilityDetail" component={FacilityDetailScreen} />
           <Stack.Screen
             name="PlanDetail"
             component={PlanDetailScreen}
-            options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
+            options={{ animation: 'slide_from_bottom', animationDuration: 360 }}
           />
           <Stack.Screen
             name="BookingFlow"
             component={BookingFlowScreen}
-            options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
+            options={{ animation: 'slide_from_bottom', animationDuration: 360 }}
           />
           <Stack.Screen name="CategoryFacilities" component={CategoryFacilitiesScreen} />
           <Stack.Screen
             name="Notifications"
             component={NotificationScreen}
-            options={{ animation: 'fade_from_bottom', animationDuration: 240 }}
+            options={{ animation: 'fade_from_bottom', animationDuration: 300 }}
           />
           <Stack.Screen name="Transactions" component={TransactionsScreen} />
           <Stack.Screen name="Legal" component={LegalScreen} />
@@ -119,7 +124,7 @@ export const RootNavigator = () => {
             <Stack.Screen
               name="SignIn"
               component={AuthScreen}
-              options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
+              options={{ animation: 'slide_from_bottom', animationDuration: 360 }}
             />
           )}
         </>

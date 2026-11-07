@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#050506"
+      "backgroundColor": "#0A0B0D"
     },
     "ios": {
       "supportsTablet": true,
@@ -25,7 +25,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
-        "backgroundColor": "#050506"
+        "backgroundColor": "#0A0B0D"
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -49,7 +49,7 @@
         "expo-notifications",
         {
           "icon": "./assets/logo.png",
-          "color": "#FF5722"
+          "color": "#FF6A1A"
         }
       ],
       "expo-secure-store",

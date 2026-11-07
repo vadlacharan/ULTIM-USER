@@ -11,14 +11,12 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../theme/theme';
+import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { getActivityIcon } from '../utils/activityIcons';
-import { CreditIcon } from '../components/CreditIcon';
-import { GradientButton, IconButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
+import { DetailTopBar, SectionHead } from '../components/ArenaUI';
 import { api } from '../services/api';
 import { adaptMembershipPlan } from '../services/adapters';
 import { MembershipPlan } from '../types';
@@ -27,6 +25,8 @@ interface PlanDetailScreenProps {
   route: any;
   navigation: any;
 }
+
+const formatPrice = (price: string) => (isNaN(Number(price)) ? price : `₹${price}`);
 
 export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navigation }) => {
   const { planId, plan: passedPlan, facilityName: passedFacilityName } = route.params || {};
@@ -94,27 +94,24 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
     }
 
     Linking.openURL(url).catch(() => {
-      if (lat !== undefined && lng !== undefined) {
-        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
-      } else {
-        const query = encodeURIComponent(
-          `${facility?.name || plan?.facilityName || 'Center'}, ${facility?.address || 'Hyderabad'}`
-        );
-        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
-      }
+      const query = encodeURIComponent(
+        `${facility?.name || plan?.facilityName || 'Center'}, ${facility?.address || 'Hyderabad'}`
+      );
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
     });
   };
 
   if (!plan) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <AppBackground />
         <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
 
   const primaryIcon = getActivityIcon(plan.validActivities?.[0] || 'gym');
-  const priceDisplay = isNaN(Number(plan.price)) ? plan.price : `₹${plan.price}`;
+  const priceDisplay = formatPrice(plan.price);
   const savings =
     plan.hasDiscount && plan.originalPrice
       ? Math.max(0, Number(plan.originalPrice) - Number(plan.price))
@@ -124,263 +121,165 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
   const activationSteps = [
     {
       step: '01',
-      title: 'Visit Center Reception Desk',
+      title: 'Visit center reception desk',
       sub: `Walk into ${resolvedFacilityName} and ask for this ULTIM pass.`,
       icon: 'walk-outline' as const,
     },
     {
       step: '02',
-      title: 'Share Your Registered Number',
+      title: 'Share your registered number',
       sub: 'Staff links the membership to your ULTIM phone or email on the spot.',
       icon: 'phone-portrait-outline' as const,
     },
     {
       step: '03',
-      title: 'Credits Load Instantly',
+      title: 'Credits load instantly',
       sub: `${plan.creditsGranted} credits appear in your Access tab — swipe to book any slot.`,
       icon: 'flash-outline' as const,
     },
+  ];
+
+  const terms = [
+    `Valid for ${plan.durationDays} days from activation.`,
+    'One credit covers one hour of court or studio time.',
+    'Available at all participating ULTIM venues.',
+    'Credits are non-transferable and non-refundable.',
   ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppBackground />
 
-      {/* ── Top Header Bar ── */}
-      <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) + 4 }]}>
-        <IconButton
-          icon="arrow-back"
-          size={38}
-          iconSize={20}
-          iconColor="#FFFFFF"
-          backgroundColor="#1F1F1F"
-          borderColor="rgba(255,255,255,0.08)"
-          onPress={() => navigation.goBack()}
-        />
-        <Text style={styles.topBarTitle}>MEMBERSHIP PASS</Text>
-        <View style={{ width: 38 }} />
-      </View>
-
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, 16) + 110 },
+          {
+            paddingTop: Math.max(insets.top, 12) + 4,
+            paddingBottom: Math.max(insets.bottom, 16) + 110,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
+        <DetailTopBar label="Membership" onBack={() => navigation.goBack()} />
+
         {loading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 40 }} />
         ) : (
           <>
-            {/* ── 1. FOIL PASS HERO CARD (Archetype: Metal Pass) ── */}
             <Animated.View entering={FadeInDown.delay(40).duration(340).damping(24)}>
-              <View style={[styles.passShadow, SHADOWS.float]}>
-                <LinearGradient
-                  colors={['#2E1609', '#191413', '#131316']}
-                  locations={[0, 0.55, 1]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.passHeroCard}
-                >
-                  {/* Top glowing foil edge */}
-                  <LinearGradient
-                    colors={[
-                      'rgba(255,90,31,0)',
-                      'rgba(255,122,61,0.85)',
-                      'rgba(233,181,76,0.55)',
-                      'rgba(255,90,31,0)',
-                    ]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.topEdgeGlow}
-                  />
-
-                  <MaterialCommunityIcons
-                    name={primaryIcon}
-                    size={165}
-                    color="rgba(255,90,31,0.07)"
-                    style={styles.heroDecorIcon}
-                  />
-
-                  <View style={styles.passHeroBody}>
-                    {/* Chip + Badge row */}
-                    <View style={styles.passHeroTopRow}>
-                      <LinearGradient
-                        colors={['#F2C05F', '#C98A27']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.foilChip}
-                      >
-                        <MaterialCommunityIcons name={primaryIcon} size={16} color="#1E1710" />
-                      </LinearGradient>
-
-                      <View style={styles.deskOnlyPill}>
-                        <View style={styles.deskOnlyDot} />
-                        <Text style={styles.deskOnlyText}>ACTIVATE AT DESK</Text>
-                      </View>
-                    </View>
-
-                    {/* Venue pill + Plan Title */}
-                    <View style={styles.venueRow}>
-                      <Ionicons name="business-outline" size={12} color={COLORS.secondary} />
-                      <Text style={styles.venueText} numberOfLines={1}>
-                        {resolvedFacilityName.toUpperCase()}
-                      </Text>
-                    </View>
-
-                    <Text style={styles.heroPlanTitle}>{plan.title}</Text>
-
-                    {!!plan.description && (
-                      <Text style={styles.heroPlanDesc}>{plan.description}</Text>
-                    )}
+              <View style={[styles.passHero, { borderColor: 'rgba(255,106,26,0.5)' }]}>
+                <View style={styles.passTopline}>
+                  <View style={styles.passTag}>
+                    <Text style={styles.passTagText}>
+                      {savings > 0 ? `SAVE ₹${savings}` : 'ACTIVATE AT DESK'}
+                    </Text>
                   </View>
-
-                  {/* Perforated ticket divider */}
-                  <View style={styles.perforation}>
-                    <View style={[styles.notch, styles.notchLeft]} />
-                    <View style={styles.dashedLine} />
-                    <View style={[styles.notch, styles.notchRight]} />
-                  </View>
-
-                  {/* Bottom Price + Credits Strip */}
-                  <View style={styles.passHeroFooter}>
-                    <View>
-                      <Text style={styles.footerLabel}>CREDITS INCLUDED</Text>
-                      <View style={styles.footerCreditRow}>
-                        <Text style={styles.footerCreditNum}>{plan.creditsGranted}</Text>
-                        <CreditIcon size={24} />
-                      </View>
-                    </View>
-
-                    <View style={styles.footerPriceCol}>
-                      <View style={styles.priceLabelRow}>
-                        {savings > 0 && (
-                          <View style={styles.saveBadge}>
-                            <Text style={styles.saveBadgeText}>SAVE ₹{savings}</Text>
-                          </View>
-                        )}
-                        <Text style={styles.footerLabel}>CENTER RATE</Text>
-                      </View>
-                      <View style={styles.priceValueRow}>
-                        {savings > 0 && plan.originalPrice && (
-                          <Text style={styles.priceStrike}>₹{plan.originalPrice}</Text>
-                        )}
-                        <Text style={styles.priceBig}>{priceDisplay}</Text>
-                      </View>
-                    </View>
-                  </View>
-                </LinearGradient>
-              </View>
-            </Animated.View>
-
-            {/* ── 2. 3-TILE STAT BENTO ROW (Archetype: Solid #181818 Stat Tiles) ── */}
-            <Animated.View entering={FadeInDown.delay(90).duration(340).damping(24)}>
-              <View style={styles.bentoRow}>
-                <View style={styles.bentoTile}>
-                  <View style={[styles.bentoIconWrap, { backgroundColor: 'rgba(255,90,31,0.14)' }]}>
-                    <Ionicons name="flash" size={15} color={COLORS.primary} />
-                  </View>
-                  <Text style={styles.bentoVal}>{plan.creditsGranted}</Text>
-                  <Text style={styles.bentoLabel}>TOTAL CREDITS</Text>
+                  <Text style={styles.passBrand}>ULTIM</Text>
                 </View>
 
-                <View style={styles.bentoTile}>
-                  <View style={[styles.bentoIconWrap, { backgroundColor: 'rgba(233,181,76,0.14)' }]}>
-                    <Ionicons name="calendar" size={15} color={COLORS.secondary} />
-                  </View>
-                  <Text style={styles.bentoVal}>{plan.durationDays}</Text>
-                  <Text style={styles.bentoLabel}>DAYS VALIDITY</Text>
+                <View style={styles.venueRow}>
+                  <MaterialCommunityIcons name={primaryIcon} size={14} color={COLORS.primary} />
+                  <Text style={styles.venueText} numberOfLines={1}>
+                    {resolvedFacilityName.toUpperCase()}
+                  </Text>
                 </View>
 
-                <View style={styles.bentoTile}>
-                  <View style={[styles.bentoIconWrap, { backgroundColor: 'rgba(52,211,153,0.14)' }]}>
-                    <Ionicons name="trophy" size={15} color={COLORS.success} />
+                <Text style={styles.passName}>{plan.title}</Text>
+                {!!plan.description && <Text style={styles.passPitch}>{plan.description}</Text>}
+
+                <View style={styles.passStats}>
+                  <View style={styles.passStat}>
+                    <Text style={styles.passValue}>{plan.creditsGranted}</Text>
+                    <Text style={styles.passLabel}>CREDITS</Text>
                   </View>
-                  <Text style={styles.bentoVal}>{plan.validActivities?.length || 1}</Text>
-                  <Text style={styles.bentoLabel}>SPORTS ACCESS</Text>
+                  <View style={styles.passStat}>
+                    <Text style={styles.passValue}>{plan.durationDays}</Text>
+                    <Text style={styles.passLabel}>DAYS</Text>
+                  </View>
+                  <View style={styles.passStat}>
+                    <Text style={styles.passValue}>{plan.validActivities?.length || 1}</Text>
+                    <Text style={styles.passLabel}>ACTIVITIES</Text>
+                  </View>
+                </View>
+
+                <View style={styles.passFooter}>
+                  <View>
+                    <Text style={styles.passFooterLabel}>PAY AT RECEPTION</Text>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.passPrice}>{priceDisplay}</Text>
+                      {savings > 0 && plan.originalPrice && (
+                        <Text style={styles.priceStrike}>₹{plan.originalPrice}</Text>
+                      )}
+                    </View>
+                  </View>
+                  <Text style={styles.passValidity}>ONE-TIME · {plan.durationDays} DAYS</Text>
                 </View>
               </View>
             </Animated.View>
 
-            {/* ── 3. ELIGIBLE ACTIVITIES GRID (Archetype: 2-Col Sport Tiles) ── */}
             {plan.validActivities && plan.validActivities.length > 0 && (
-              <Animated.View entering={FadeInDown.delay(140).duration(340).damping(24)}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionTitle}>ELIGIBLE SPORTS & ZONES</Text>
-                  <Text style={styles.sectionCount}>{plan.validActivities.length} INCLUDED</Text>
-                </View>
-
-                <View style={styles.sportGrid}>
+              <Animated.View entering={FadeInDown.delay(130).duration(340).damping(24)} style={styles.section}>
+                <SectionHead
+                  eyebrow="Everything inside"
+                  title="Included activities"
+                  meta={`${plan.validActivities.length} included`}
+                />
+                <View style={styles.benefitList}>
                   {plan.validActivities.map((act: string, idx: number) => (
-                    <View key={`${act}-${idx}`} style={styles.sportTile}>
-                      <View style={styles.sportIconCircle}>
-                        <MaterialCommunityIcons
-                          name={getActivityIcon(act)}
-                          size={20}
-                          color={COLORS.primary}
-                        />
+                    <View key={`${act}-${idx}`} style={styles.benefitRow}>
+                      <View style={styles.benefitIcon}>
+                        <MaterialCommunityIcons name={getActivityIcon(act)} size={14} color={COLORS.primary} />
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.sportTileTitle} numberOfLines={1}>
-                          {act.toUpperCase()}
-                        </Text>
-                        <Text style={styles.sportTileSub}>Included in pass</Text>
+                      <View style={styles.benefitCopy}>
+                        <Text style={styles.benefitName}>{act}</Text>
+                        <Text style={styles.benefitNote}>Included in this pass</Text>
                       </View>
-                      <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                      <Ionicons name="checkmark" size={16} color={COLORS.success} />
                     </View>
                   ))}
                 </View>
               </Animated.View>
             )}
 
-            {/* ── 4. PLAN INCLUSIONS (Archetype: Spotify Tracklist Card) ── */}
-            <Animated.View entering={FadeInDown.delay(190).duration(340).damping(24)}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>WHAT YOU GET</Text>
-                <Text style={styles.sectionCount}>PASS PERKS</Text>
-              </View>
-
-              <View style={styles.tracklistCard}>
-                {plan.features.map((feature: string, idx: number) => (
-                  <View
-                    key={idx}
-                    style={[
-                      styles.trackRow,
-                      idx < plan.features.length - 1 && styles.trackRowBorder,
-                    ]}
-                  >
-                    <Text style={styles.trackIndex}>
-                      {String(idx + 1).padStart(2, '0')}
-                    </Text>
-                    <Text style={styles.trackText}>{feature}</Text>
-                    <View style={styles.trackCheck}>
-                      <Ionicons name="checkmark" size={12} color={COLORS.onPrimary} />
-                    </View>
+            {(() => {
+              const perkFeatures = (plan.features || []).filter(
+                (f: string) => !/credits granted/i.test(f) && !/^valid for:/i.test(f)
+              );
+              if (perkFeatures.length === 0) return null;
+              return (
+                <Animated.View entering={FadeInDown.delay(170).duration(340).damping(24)} style={styles.section}>
+                  <SectionHead eyebrow="A little extra" title="Plan perks" meta="PASS PERKS" />
+                  <View style={styles.benefitList}>
+                    {perkFeatures.map((feature: string, idx: number) => (
+                      <View key={`${feature}-${idx}`} style={styles.benefitRow}>
+                        <View style={styles.benefitIcon}>
+                          <Ionicons name="checkmark" size={14} color={COLORS.primary} />
+                        </View>
+                        <View style={styles.benefitCopy}>
+                          <Text style={styles.benefitName}>{feature}</Text>
+                        </View>
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </View>
-            </Animated.View>
+                </Animated.View>
+              );
+            })()}
 
-            {/* ── 5. HOW TO ACTIVATE TIMELINE (Archetype: Stepper Card) ── */}
-            <Animated.View entering={FadeInDown.delay(240).duration(340).damping(24)}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>HOW TO ACTIVATE</Text>
-                <Text style={styles.sectionCount}>3 EASY STEPS</Text>
-              </View>
-
-              <View style={styles.timelineCard}>
+            <Animated.View entering={FadeInDown.delay(210).duration(340).damping(24)} style={styles.section}>
+              <SectionHead eyebrow="How it works" title="Activate your pass" meta="3 STEPS" />
+              <View style={styles.timeline}>
                 {activationSteps.map((item, idx) => {
-                  const isLast = idx === activationSteps.length - 1;
+                  const last = idx === activationSteps.length - 1;
                   return (
                     <View key={item.step} style={styles.timelineRow}>
-                      <View style={styles.timelineLeftCol}>
-                        <View style={styles.timelineIconCircle}>
-                          <Ionicons name={item.icon} size={16} color={COLORS.primary} />
+                      <View style={styles.timelineLeft}>
+                        <View style={styles.timelineIcon}>
+                          <Ionicons name={item.icon} size={15} color={COLORS.primary} />
                         </View>
-                        {!isLast && <View style={styles.timelineConnector} />}
+                        {!last && <View style={styles.timelineConnector} />}
                       </View>
-                      <View style={[styles.timelineTextCol, !isLast && { paddingBottom: 16 }]}>
-                        <Text style={styles.timelineStepTag}>STEP {item.step}</Text>
+                      <View style={[styles.timelineCopy, !last && { paddingBottom: 16 }]}>
+                        <Text style={styles.timelineStep}>STEP {item.step}</Text>
                         <Text style={styles.timelineTitle}>{item.title}</Text>
                         <Text style={styles.timelineSub}>{item.sub}</Text>
                       </View>
@@ -389,17 +288,24 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
                 })}
               </View>
             </Animated.View>
+
+            <Animated.View entering={FadeInDown.delay(250).duration(340).damping(24)} style={styles.section}>
+              <SectionHead eyebrow="The details" title="Good to know" />
+              <View style={styles.termsCard}>
+                <Text style={styles.termsTitle}>Credits and validity</Text>
+                {terms.map((term, idx) => (
+                  <View key={idx} style={styles.termRow}>
+                    <View style={styles.termDot} />
+                    <Text style={styles.termText}>{term}</Text>
+                  </View>
+                ))}
+              </View>
+            </Animated.View>
           </>
         )}
       </ScrollView>
 
-      {/* ── Fixed Bottom Directions Bar ── */}
-      <View
-        style={[
-          styles.bottomDock,
-          { paddingBottom: Math.max(insets.bottom, 14) },
-        ]}
-      >
+      <View style={[styles.bottomDock, { paddingBottom: Math.max(insets.bottom, 14) }]}>
         <View style={styles.dockPriceCol}>
           <Text style={styles.dockPriceLabel}>PAY AT RECEPTION</Text>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
@@ -409,13 +315,12 @@ export const PlanDetailScreen: React.FC<PlanDetailScreenProps> = ({ route, navig
             )}
           </View>
         </View>
-
         <TouchableOpacity
-          style={[styles.directionsPill, SHADOWS.ember]}
+          style={styles.directionsPill}
           onPress={handleGetCenterDirections}
           activeOpacity={0.88}
         >
-          <Ionicons name="navigate" size={15} color={COLORS.onPrimary} />
+          <Ionicons name="navigate-outline" size={15} color={COLORS.onPrimary} />
           <Text style={styles.directionsPillText}>GET DIRECTIONS</Text>
         </TouchableOpacity>
       </View>
@@ -428,398 +333,269 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.containerPadding,
-    paddingBottom: 12,
-  },
-  topBarTitle: {
-    fontSize: 12,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.8,
-  },
   scrollContent: {
     paddingHorizontal: SPACING.containerPadding,
-    paddingTop: 6,
   },
-
-  // ── 1. Foil Pass Hero Card ──
-  passShadow: {
-    borderRadius: 20,
-  },
-  passHeroCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,122,61,0.35)',
-    overflow: 'hidden',
-  },
-  topEdgeGlow: {
-    height: 2.5,
-    width: '100%',
-  },
-  heroDecorIcon: {
-    position: 'absolute',
-    right: -28,
-    top: 22,
-    transform: [{ rotate: '-14deg' }],
-  },
-  passHeroBody: {
+  passHero: {
+    gap: 12,
     padding: 20,
-    paddingBottom: 16,
+    borderWidth: 1,
+    borderRadius: RADIUS.panel,
+    backgroundColor: '#17110D',
   },
-  passHeroTopRow: {
+  passTopline: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    gap: 12,
   },
-  foilChip: {
-    width: 38,
-    height: 28,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deskOnlyPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(233,181,76,0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(233,181,76,0.38)',
-    paddingHorizontal: 10,
+  passTag: {
+    paddingHorizontal: 9,
     paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: COLORS.primaryBorder,
     borderRadius: RADIUS.full,
+    backgroundColor: COLORS.primaryMuted,
   },
-  deskOnlyDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: COLORS.secondary,
-  },
-  deskOnlyText: {
-    fontSize: 9,
+  passTagText: {
+    color: COLORS.primary,
     fontFamily: FONTS.extraBold,
-    color: COLORS.secondary,
-    letterSpacing: 1.2,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.7,
+  },
+  passBrand: {
+    color: COLORS.muted,
+    fontFamily: FONTS.display,
+    fontSize: 15,
+    lineHeight: 16,
+    letterSpacing: 2.2,
   },
   venueRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
   venueText: {
-    fontSize: 10.5,
+    flex: 1,
+    color: COLORS.primary,
     fontFamily: FONTS.extraBold,
-    color: COLORS.secondary,
-    letterSpacing: 1.3,
+    fontSize: 9.5,
+    lineHeight: 12,
+    letterSpacing: 1.1,
   },
-  heroPlanTitle: {
-    fontSize: 26,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: -0.6,
-    lineHeight: 31,
-    marginTop: 4,
+  passName: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 52,
+    lineHeight: 46,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
-  heroPlanDesc: {
-    fontSize: 13,
+  passPitch: {
+    maxWidth: 300,
+    color: COLORS.muted,
     fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
-    lineHeight: 19,
-    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 20,
   },
-
-  // Perforation
-  perforation: {
-    position: 'relative',
-    justifyContent: 'center',
-    height: 18,
+  passStats: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 2,
   },
-  dashedLine: {
-    borderTopWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(255,255,255,0.16)',
-    marginHorizontal: 16,
+  passStat: {
+    flex: 1,
+    gap: 3,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  notch: {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: COLORS.background,
+  passValue: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 28,
+    lineHeight: 27,
+    letterSpacing: 0.3,
   },
-  notchLeft: {
-    left: -9,
+  passLabel: {
+    color: COLORS.muted,
+    fontFamily: FONTS.bold,
+    fontSize: 8.5,
+    lineHeight: 11,
+    letterSpacing: 0.6,
   },
-  notchRight: {
-    right: -9,
-  },
-
-  passHeroFooter: {
+  passFooter: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 18,
-    backgroundColor: 'rgba(10,10,12,0.5)',
+    gap: 12,
+    paddingTop: 4,
   },
-  footerLabel: {
+  passFooterLabel: {
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
     fontSize: 8.5,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.3,
+    lineHeight: 11,
+    letterSpacing: 1,
   },
-  footerCreditRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 3,
-  },
-  footerCreditNum: {
-    fontSize: 32,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: -0.8,
-    lineHeight: 36,
-  },
-  footerPriceCol: {
-    alignItems: 'flex-end',
-  },
-  priceLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  saveBadge: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: RADIUS.full,
-  },
-  saveBadgeText: {
-    fontSize: 8,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.onPrimary,
-    letterSpacing: 0.8,
-  },
-  priceValueRow: {
+  priceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 7,
-    marginTop: 3,
-  },
-  priceStrike: {
-    fontSize: 13,
-    fontFamily: FONTS.medium,
-    color: 'rgba(255,255,255,0.38)',
-    textDecorationLine: 'line-through',
-  },
-  priceBig: {
-    fontSize: 28,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: -0.6,
-  },
-
-  // ── 2. Bento Row ──
-  bentoRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
-  },
-  bentoTile: {
-    flex: 1,
-    backgroundColor: '#181818',
-    borderRadius: 14,
-    padding: 13,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    alignItems: 'flex-start',
-  },
-  bentoIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  bentoVal: {
-    fontSize: 22,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-  },
-  bentoLabel: {
-    fontSize: 8.5,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.1,
     marginTop: 2,
   },
-
-  // ── Section Headers ──
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 24,
-    marginBottom: 10,
+  passPrice: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 32,
+    lineHeight: 31,
+    letterSpacing: 0.3,
   },
-  sectionTitle: {
-    fontSize: 11.5,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.5,
-  },
-  sectionCount: {
-    fontSize: 10,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-    letterSpacing: 1,
-  },
-
-  // ── 3. Eligible Sports Grid ──
-  sportGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  sportTile: {
-    width: '48.3%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#181818',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  sportIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#242428',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sportTileTitle: {
+  priceStrike: {
+    color: COLORS.meta,
+    fontFamily: FONTS.medium,
     fontSize: 12,
-    fontFamily: FONTS.extraBold,
-    color: '#FFFFFF',
-    letterSpacing: 0.6,
+    textDecorationLine: 'line-through',
   },
-  sportTileSub: {
-    fontSize: 10,
-    fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
-    marginTop: 1,
+  passValidity: {
+    color: COLORS.muted,
+    fontFamily: FONTS.semiBold,
+    fontSize: 9,
+    letterSpacing: 0.4,
+    textAlign: 'right',
   },
 
-  // ── 4. Tracklist Inclusions Card ──
-  tracklistCard: {
-    backgroundColor: '#181818',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    overflow: 'hidden',
+  section: {
+    marginTop: 28,
   },
-  trackRow: {
+  benefitList: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.line,
+  },
+  benefitRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 14,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lineSoft,
   },
-  trackRowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  trackIndex: {
-    fontSize: 11,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    width: 22,
-  },
-  trackText: {
-    flex: 1,
-    fontSize: 13.5,
-    fontFamily: FONTS.semiBold,
-    color: '#FFFFFF',
-    lineHeight: 19,
-  },
-  trackCheck: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: COLORS.primary,
+  benefitIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.primaryMuted,
   },
-
-  // ── 5. Timeline Activation Card ──
-  timelineCard: {
-    backgroundColor: '#181818',
-    borderRadius: 14,
+  benefitCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  benefitName: {
+    color: COLORS.paper,
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    lineHeight: 19,
+    textTransform: 'capitalize',
+  },
+  benefitNote: {
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  timeline: {
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
   },
   timelineRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  timelineLeftCol: {
+  timelineLeft: {
     alignItems: 'center',
   },
-  timelineIconCircle: {
+  timelineIcon: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: 'rgba(255,90,31,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,90,31,0.30)',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.surfaceBright,
+    borderWidth: 1,
+    borderColor: COLORS.line,
   },
   timelineConnector: {
     flex: 1,
-    width: 1.5,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    width: 1,
+    backgroundColor: COLORS.line,
     marginVertical: 4,
   },
-  timelineTextCol: {
+  timelineCopy: {
     flex: 1,
     paddingTop: 1,
   },
-  timelineStepTag: {
-    fontSize: 9,
-    fontFamily: FONTS.extraBold,
+  timelineStep: {
     color: COLORS.primary,
-    letterSpacing: 1.2,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 1,
   },
   timelineTitle: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
-    color: '#FFFFFF',
     marginTop: 2,
+    color: COLORS.paper,
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    lineHeight: 19,
   },
   timelineSub: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
-    lineHeight: 17,
     marginTop: 3,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    lineHeight: 18,
   },
-
-  // ── Bottom Dock ──
+  termsCard: {
+    gap: 7,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
+  },
+  termsTitle: {
+    color: COLORS.paper,
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 2,
+  },
+  termRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+  },
+  termDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.primary,
+    marginTop: 7,
+  },
+  termText: {
+    flex: 1,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    lineHeight: 17,
+  },
   bottomDock: {
     position: 'absolute',
     left: 0,
@@ -829,45 +605,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.containerPadding,
-    paddingTop: 12,
-    backgroundColor: 'rgba(18,18,18,0.96)',
+    paddingTop: 11,
+    backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: COLORS.line,
   },
   dockPriceCol: {
     gap: 1,
   },
   dockPriceLabel: {
-    fontSize: 9,
+    color: COLORS.muted,
     fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.2,
+    fontSize: 8.5,
+    lineHeight: 11,
+    letterSpacing: 1,
   },
   dockPriceVal: {
-    fontSize: 22,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: -0.4,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 24,
+    lineHeight: 24,
+    letterSpacing: 0.3,
   },
   dockPriceStrike: {
-    fontSize: 12,
+    color: COLORS.meta,
     fontFamily: FONTS.medium,
-    color: 'rgba(255,255,255,0.38)',
+    fontSize: 11,
     textDecorationLine: 'line-through',
   },
   directionsPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
+    minHeight: 44,
+    paddingHorizontal: 18,
+    borderRadius: 12,
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 22,
-    height: 46,
-    borderRadius: RADIUS.full,
   },
   directionsPillText: {
-    fontSize: 12,
-    fontFamily: FONTS.extraBold,
     color: COLORS.onPrimary,
-    letterSpacing: 1.5,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 0.8,
   },
 });

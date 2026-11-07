@@ -1,13 +1,12 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { SlideInUp, SlideOutDown } from 'react-native-reanimated';
-import { COLORS, FONTS, GRADIENTS, RADIUS } from '../theme/theme';
+import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import { COLORS, FONTS, RADIUS, SHADOWS } from '../theme/theme';
 import { useApp } from '../context/AppContext';
-import { GlassBlur, IS_EXPO_GO } from './Blur';
 import { IconButton } from './buttons';
 import { Booking } from '../types';
+import { formatClock, formatDateShort } from '../utils/display';
 import { TAB_BAR_HEIGHT, useTabBarBottomOffset } from '../navigation/BlurTabBar';
 
 interface SessionNowBarProps {
@@ -18,8 +17,10 @@ interface SessionNowBarProps {
 }
 
 /**
- * "Now playing" bar for the next session — same glass language as the tab
- * bar, floating above it. Slides in on the UI thread when a session appears.
+ * Floating "next session" dock. It keeps the original behaviour — always
+ * hovering above the tab bar, opening the entry pass — but now uses the arena
+ * surface language: flat charcoal, hairline border, orange marker and a small
+ * uppercase eyebrow.
  */
 const SessionNowBarComponent: React.FC<SessionNowBarProps> = ({ booking, onQrPress, loading = false }) => {
   const { colors } = useApp();
@@ -27,39 +28,25 @@ const SessionNowBarComponent: React.FC<SessionNowBarProps> = ({ booking, onQrPre
 
   return (
     <Animated.View
-      entering={SlideInUp.delay(150).duration(380).damping(26).stiffness(280)}
-      exiting={SlideOutDown.duration(220)}
+      entering={SlideInDown.delay(160).duration(360).damping(26).stiffness(240)}
+      exiting={SlideOutDown.duration(200)}
       style={[styles.shell, { bottom: TAB_BAR_HEIGHT + tabBarBottom + 10 }]}
       pointerEvents="box-none"
     >
-      <View style={styles.bar}>
-        <GlassBlur style={StyleSheet.absoluteFill} blurAmount={24} />
-        <LinearGradient
-          colors={
-            IS_EXPO_GO
-              ? ['rgba(16,16,18,0.80)', 'rgba(6,6,8,0.92)']
-              : ['rgba(14,14,16,0.10)', 'rgba(5,5,6,0.20)']
-          }
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-
-        <LinearGradient
-          colors={[...GRADIENTS.primaryButton]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.chip}
-        >
-          <Ionicons name="flash-sharp" size={17} color={COLORS.onPrimary} />
-        </LinearGradient>
+      <View style={[styles.bar, SHADOWS.float]}>
+        <View style={styles.liveMark}>
+          <Ionicons name="flash" size={17} color={COLORS.onPrimary} />
+        </View>
 
         <View style={styles.textCol}>
+          <Text style={styles.eyebrow} numberOfLines={1}>
+            NEXT SESSION · {formatDateShort(booking.dateStr)} ·{' '}
+            {(booking.timeSlotLabel || '').match(/^\d{1,2}:\d{2}/)
+              ? formatClock((booking.timeSlotLabel || '').slice(0, 5))
+              : booking.timeSlotLabel}
+          </Text>
           <Text style={[styles.title, { color: colors.onSurface }]} numberOfLines={1}>
             {booking.facilityName}
-          </Text>
-          <Text style={[styles.sub, { color: colors.textMuted }]} numberOfLines={1}>
-            {booking.dateStr} · {booking.timeSlotLabel} · {booking.creditsSpent} cr
           </Text>
         </View>
 
@@ -69,11 +56,13 @@ const SessionNowBarComponent: React.FC<SessionNowBarProps> = ({ booking, onQrPre
           </View>
         ) : (
           <IconButton
-            icon="qr-code-sharp"
+            icon="qr-code-outline"
             onPress={onQrPress}
             size={40}
-            iconSize={20}
-            gradientColors={[...GRADIENTS.primaryButton]}
+            iconSize={19}
+            iconColor={COLORS.onPrimary}
+            backgroundColor={COLORS.primary}
+            borderColor={COLORS.primary}
           />
         )}
       </View>
@@ -92,42 +81,50 @@ const styles = StyleSheet.create({
     zIndex: 11,
   },
   bar: {
-    height: 58,
+    minHeight: 60,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 11,
     paddingHorizontal: 9,
+    paddingVertical: 8,
     borderRadius: RADIUS.full,
-    borderWidth: StyleSheet.hairlineWidth + 0.7,
-    borderColor: 'rgba(255,255,255,0.12)',
-    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.surface,
   },
-  chip: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingChip: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.full,
+  liveMark: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.primary,
   },
   textCol: {
     flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  eyebrow: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 8.5,
+    lineHeight: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   title: {
-    fontSize: 13,
     fontFamily: FONTS.bold,
-    letterSpacing: -0.2,
+    fontSize: 13.5,
+    lineHeight: 18,
+    letterSpacing: -0.1,
   },
-  sub: {
-    fontSize: 11,
-    fontFamily: FONTS.medium,
-    marginTop: 2,
+  loadingChip: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
   },
 });

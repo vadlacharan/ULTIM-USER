@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,33 +10,32 @@ import {
   Linking,
   Platform,
   FlatList,
+  Pressable,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../theme/theme';
+import { WebView } from 'react-native-webview';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { getActivityIcon } from '../utils/activityIcons';
 import { NoticeBanner } from '../components/NoticeBanner';
-import { StatusBadge } from '../components/StatusBadge';
-import { IconButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
+import { ArenaEmptyState, DetailTopBar, Eyebrow, SectionHead } from '../components/ArenaUI';
 import { api } from '../services/api';
 import { adaptMembershipPlan, adaptTenantToFacility } from '../services/adapters';
 import { MembershipPlan, Facility } from '../types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// Google Maps' brand red — used for the "Get Directions" affordance so it reads
-// as the recognizable Google Maps action rather than the app's own accent color.
-const GOOGLE_MAPS_RED = '#EA4335';
+const GALLERY_WIDTH = SCREEN_WIDTH - SPACING.containerPadding * 2;
 
 interface FacilityDetailScreenProps {
   route: any;
   navigation: any;
 }
+
+const formatPrice = (price: string) => (isNaN(Number(price)) ? price : `₹${price}`);
 
 export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
   route,
@@ -45,19 +44,21 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
   const { facilityId } = route.params || {};
   const { facilities, plans: defaultPlans, colors } = useApp();
   const insets = useSafeAreaInsets();
+  const galleryRef = useRef<FlatList<string>>(null);
 
   const [facility, setFacility] = useState<Facility>(
     facilities.find((f) => String(f.id) === String(facilityId)) || facilities[0]
   );
   const [loadingFacility, setLoadingFacility] = useState<boolean>(false);
-
   const [facilityPlans, setFacilityPlans] = useState<MembershipPlan[]>(
     defaultPlans.filter((p) => String(p.facilityId) === String(facility?.id))
   );
   const [loadingPlans, setLoadingPlans] = useState<boolean>(false);
   const [activeImageIdx, setActiveImageIdx] = useState<number>(0);
+  const [routeOpen, setRouteOpen] = useState<boolean>(false);
+  const [selectedSports, setSelectedSports] = useState<string[]>([]);
+  const [selectedValidity, setSelectedValidity] = useState<string[]>([]);
 
-  // Fetch full facility details if not available locally
   useEffect(() => {
     const fetchFacilityData = async () => {
       if (!facilityId) return;
@@ -73,11 +74,9 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
         setLoadingFacility(false);
       }
     };
-
     fetchFacilityData();
   }, [facilityId]);
 
-  // Fetch live plans for this facility
   useEffect(() => {
     const loadLivePlans = async () => {
       if (!facility?.id) return;
@@ -94,8 +93,15 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
         setLoadingPlans(false);
       }
     };
-
     loadLivePlans();
+  }, [facility?.id]);
+
+  // Reset per-facility UI (filters, route panel, gallery) when the venue changes.
+  useEffect(() => {
+    setSelectedSports([]);
+    setSelectedValidity([]);
+    setRouteOpen(false);
+    setActiveImageIdx(0);
   }, [facility?.id]);
 
   const handleOpenGoogleMaps = () => {
@@ -103,7 +109,12 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
 
     let lat = facility.latitude;
     let lng = facility.longitude;
-    if ((lat === undefined || lng === undefined) && facility.rawLocation && Array.isArray(facility.rawLocation) && facility.rawLocation.length >= 2) {
+    if (
+      (lat === undefined || lng === undefined) &&
+      facility.rawLocation &&
+      Array.isArray(facility.rawLocation) &&
+      facility.rawLocation.length >= 2
+    ) {
       lng = facility.rawLocation[0];
       lat = facility.rawLocation[1];
     }
@@ -111,18 +122,20 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
     let url: string;
     if (lat !== undefined && lng !== undefined && !isNaN(lat) && !isNaN(lng)) {
       const label = encodeURIComponent(facility.name || 'Facility');
-      url = Platform.select({
-        ios: `maps:0,0?q=${label}@${lat},${lng}`,
-        android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
-        web: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-      }) || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+      url =
+        Platform.select({
+          ios: `maps:0,0?q=${label}@${lat},${lng}`,
+          android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
+          web: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+        }) || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
     } else {
       const query = encodeURIComponent(`${facility.name}, ${facility.address}`);
-      url = Platform.select({
-        ios: `maps:0,0?q=${query}`,
-        android: `geo:0,0?q=${query}`,
-        web: `https://www.google.com/maps/search/?api=1&query=${query}`,
-      }) || `https://www.google.com/maps/search/?api=1&query=${query}`;
+      url =
+        Platform.select({
+          ios: `maps:0,0?q=${query}`,
+          android: `geo:0,0?q=${query}`,
+          web: `https://www.google.com/maps/search/?api=1&query=${query}`,
+        }) || `https://www.google.com/maps/search/?api=1&query=${query}`;
     }
 
     Linking.openURL(url).catch(() => {
@@ -135,21 +148,18 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
     });
   };
 
-  const images = facility?.images && facility.images.length > 0
-    ? facility.images
-    : facility?.imageUrl
-      ? [facility.imageUrl]
-      : [];
+  const images =
+    facility?.images && facility.images.length > 0
+      ? facility.images
+      : facility?.imageUrl
+        ? [facility.imageUrl]
+        : [];
+  const thumbs = images.slice(0, 3);
 
-  const onHeroMomentumEnd = useCallback(
-    (e: any) => {
-      const page = Math.round(
-        e.nativeEvent.contentOffset.x / (SCREEN_WIDTH || 1)
-      );
-      setActiveImageIdx((prev) => (prev === page ? prev : page));
-    },
-    []
-  );
+  const onHeroMomentumEnd = useCallback((e: any) => {
+    const page = Math.round(e.nativeEvent.contentOffset.x / (GALLERY_WIDTH || 1));
+    setActiveImageIdx((prev) => (prev === page ? prev : page));
+  }, []);
 
   const renderHeroItem = useCallback(
     ({ item: imgUri }: { item: string }) => (
@@ -161,11 +171,6 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
           transition={220}
           cachePolicy="memory-disk"
         />
-        <LinearGradient
-          colors={['transparent', 'rgba(18,18,18,0.85)']}
-          locations={[0.45, 1]}
-          style={styles.heroGradient}
-        />
       </View>
     ),
     []
@@ -174,32 +179,108 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
   if (loadingFacility && !facility) {
     return (
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 20), justifyContent: 'center' }]}>
+        <AppBackground />
         <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
 
+  if (!facility) {
+    return (
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, 20) }]}>
+        <AppBackground />
+        <Text style={{ color: COLORS.paper, textAlign: 'center', marginTop: 48 }}>Facility not found.</Text>
+      </View>
+    );
+  }
+
+  const activityCount = facility.activities?.length ?? facility.sportTags?.length ?? 0;
+  const distanceKm = facility.distanceKm ?? 1.2;
+  const driveTime = `${Math.max(3, Math.round(distanceKm * 3))} min`;
+  const walkTime = `${Math.max(5, Math.round(distanceKm * 13))} min`;
+
+  // Real map coordinates (facility point). rawLocation is [lng, lat].
+  let mapLat = facility.latitude;
+  let mapLng = facility.longitude;
+  if (
+    (mapLat === undefined || mapLng === undefined) &&
+    facility.rawLocation &&
+    Array.isArray(facility.rawLocation) &&
+    facility.rawLocation.length >= 2
+  ) {
+    mapLng = facility.rawLocation[0];
+    mapLat = facility.rawLocation[1];
+  }
+  const hasCoords =
+    typeof mapLat === 'number' &&
+    typeof mapLng === 'number' &&
+    !isNaN(mapLat) &&
+    !isNaN(mapLng);
+
+  // Live Leaflet embed (OpenStreetMap tiles) rendered in a WebView. The map
+  // itself is non-interactive so it never fights the parent ScrollView —
+  // tapping anywhere opens the full Google Maps app.
+  const leafletHtml =
+    hasCoords && mapLat !== undefined && mapLng !== undefined
+      ? `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><style>html,body{margin:0;padding:0;height:100%;}#map{height:100%;width:100%;background:#101410;}.leaflet-control-attribution{font-size:8px;background:rgba(10,11,13,.55)!important;color:#8c8881!important;}.leaflet-control-attribution a{color:#8c8881!important;}</style></head><body><div id="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>var map=L.map('map',{zoomControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,touchZoom:false,boxZoom:false,keyboard:false}).setView([${mapLat},${mapLng}],15);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);L.circleMarker([${mapLat},${mapLng}],{radius:9,color:'#0A0B0D',weight:3,fillColor:'#FF6A1A',fillOpacity:1}).addTo(map);</script></body></html>`
+      : null;
+
+  const toggleSport = (sport: string) =>
+    setSelectedSports((prev) =>
+      prev.includes(sport) ? prev.filter((s) => s !== sport) : [...prev, sport]
+    );
+  const toggleValidity = (bucket: string) =>
+    setSelectedValidity((prev) =>
+      prev.includes(bucket) ? prev.filter((b) => b !== bucket) : [...prev, bucket]
+    );
+
+  const validityBucketOf = (days: number): string => {
+    if (days <= 31) return 'upto1m';
+    if (days <= 93) return '1to3m';
+    if (days <= 186) return '3to6m';
+    return '6plus';
+  };
+
+  const sportOptions = [...new Set(
+    facilityPlans.flatMap((p) => (p.validActivities || []).map((a) => String(a).toLowerCase()))
+  )].sort();
+
+  const filteredPlans = facilityPlans.filter((p) => {
+    const sportsOk =
+      selectedSports.length === 0 ||
+      (p.validActivities || []).some((a) => selectedSports.includes(String(a).toLowerCase()));
+    const validityOk =
+      selectedValidity.length === 0 ||
+      selectedValidity.includes(validityBucketOf(Number(p.durationDays) || 0));
+    return sportsOk && validityOk;
+  });
+  const hasPlanFilters = selectedSports.length > 0 || selectedValidity.length > 0;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppBackground />
-      {/* Floating Back Button */}
-      <IconButton
-        icon="arrow-back"
-        size={40}
-        iconSize={22}
-        iconColor="#FFF"
-        backgroundColor="rgba(19, 19, 18, 0.75)"
-        borderColor={'rgba(255,255,255,0.10)'}
-        onPress={() => navigation.goBack()}
-        style={[styles.floatingBackBtn, { top: Math.max(insets.top, 12) + 6 }]}
-      />
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 16) + 30 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ paddingTop: Math.max(insets.top, 12) + 4 }}>
+          <DetailTopBar
+            label="Arena"
+            onBack={() => navigation.goBack()}
+            right={
+              <View style={styles.openChip}>
+                <View style={styles.openDot} />
+                <Text style={styles.openChipText}>OPEN</Text>
+              </View>
+            }
+          />
+        </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Hero Photo Carousel — FlatList paging (recycled, momentum-only page calc) */}
-        <View style={styles.heroContainer}>
-          {images.length > 0 ? (
-            <>
+        <Animated.View entering={FadeIn.duration(300)} style={styles.gallery}>
+          <View style={styles.galleryFrame}>
+            {images.length > 0 ? (
               <FlatList
+                ref={galleryRef}
                 data={images}
                 keyExtractor={(uri, index) => `${uri}-${index}`}
                 horizontal
@@ -210,209 +291,389 @@ export const FacilityDetailScreen: React.FC<FacilityDetailScreenProps> = ({
                 maxToRenderPerBatch={2}
                 windowSize={3}
                 getItemLayout={(_, index) => ({
-                  length: SCREEN_WIDTH,
-                  offset: SCREEN_WIDTH * index,
+                  length: GALLERY_WIDTH,
+                  offset: GALLERY_WIDTH * index,
                   index,
                 })}
                 onMomentumScrollEnd={onHeroMomentumEnd}
                 renderItem={renderHeroItem}
               />
+            ) : (
+              <View style={styles.placeholderHero}>
+                <Ionicons name="barbell-outline" size={46} color={COLORS.primary} />
+                <Text style={styles.placeholderHeroText}>NO FACILITY PHOTOS LISTED</Text>
+              </View>
+            )}
 
-              {/* Dots indicator */}
-              {images.length > 1 && (
-                <View style={styles.dotsContainer}>
-                  {images.map((_, idx) => (
-                    <View
-                      key={idx}
-                      style={[styles.dot, activeImageIdx === idx && styles.activeDot]}
-                    />
-                  ))}
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.placeholderHero}>
-              <Ionicons name="barbell-outline" size={54} color={COLORS.primary} />
-              <Text style={styles.placeholderHeroText}>NO FACILITY PHOTOS LISTED</Text>
+            <View style={styles.galleryCount}>
+              <Text style={styles.galleryCountText}>
+                {Math.min(activeImageIdx + 1, Math.max(images.length, 1))} / {Math.max(images.length, 1)}
+              </Text>
+            </View>
+
+            {images.length > 1 && (
+              <>
+                <Pressable
+                  style={[styles.galleryArrow, { left: 10 }]}
+                  onPress={() => {
+                    const next = Math.max(0, activeImageIdx - 1);
+                    setActiveImageIdx(next);
+                    galleryRef.current?.scrollToIndex({ index: next, animated: true });
+                  }}
+                >
+                  <Ionicons name="chevron-back" size={18} color={COLORS.paper} />
+                </Pressable>
+                <Pressable
+                  style={[styles.galleryArrow, { right: 10 }]}
+                  onPress={() => {
+                    const next = Math.min(images.length - 1, activeImageIdx + 1);
+                    setActiveImageIdx(next);
+                    galleryRef.current?.scrollToIndex({ index: next, animated: true });
+                  }}
+                >
+                  <Ionicons name="chevron-forward" size={18} color={COLORS.paper} />
+                </Pressable>
+              </>
+            )}
+          </View>
+
+          {thumbs.length > 1 && (
+            <View style={styles.thumbRow}>
+              {thumbs.map((thumb, idx) => (
+                <Pressable
+                  key={`${thumb}-thumb-${idx}`}
+                  onPress={() => {
+                    setActiveImageIdx(idx);
+                    galleryRef.current?.scrollToIndex({ index: idx, animated: true });
+                  }}
+                  style={[styles.thumb, activeImageIdx === idx && styles.thumbActive]}
+                >
+                  <Image source={{ uri: thumb }} style={styles.thumbImage} contentFit="cover" />
+                </Pressable>
+              ))}
             </View>
           )}
+        </Animated.View>
 
-          <View style={styles.heroBadgeRow}>
-            <StatusBadge label={facility.category} type="active" />
+        <Animated.View entering={FadeInDown.delay(70).duration(340).damping(24)} style={styles.venueBlock}>
+          <Eyebrow>
+            {facility.category || 'Arena'}
+            {facility.sportTags?.[0] ? ` / ${facility.sportTags[0]}` : ''}
+          </Eyebrow>
+          <View style={styles.venueHeadingRow}>
+            <Text style={styles.venueName}>{facility.name}</Text>
             {facility.rating > 0 && (
-              <View style={styles.ratingBox}>
-                <Ionicons name="star" size={14} color="#FFD700" />
-                <Text style={styles.ratingVal}>{facility.rating.toFixed(1)}</Text>
+              <View style={styles.venueRating}>
+                <Ionicons name="star" size={13} color={COLORS.primary} />
+                <Text style={styles.venueRatingText}>{facility.rating.toFixed(1)}</Text>
               </View>
             )}
           </View>
-        </View>
 
-        <View style={styles.mainContent}>
-          {/* Title & Location */}
-          <Animated.View entering={FadeInDown.delay(80).duration(360).damping(24)}>
-            <Text style={[styles.title, { color: colors.onSurface }]}>{facility.name}</Text>
-          </Animated.View>
-
-          {/* Location / Get Directions Card */}
-          <TouchableOpacity
-            style={styles.locationCard}
-            onPress={handleOpenGoogleMaps}
-            activeOpacity={0.85}
-          >
-            <View style={styles.locationIconBox}>
-              <MaterialCommunityIcons name="google-maps" size={20} color={GOOGLE_MAPS_RED} />
-            </View>
-            <View style={styles.locationTextCol}>
-              <Text style={[styles.addressText, { color: colors.onSurface }]} numberOfLines={2}>
-                {facility.address}
-              </Text>
-              <Text style={styles.directionsHint}>GET DIRECTIONS</Text>
-            </View>
-            <View style={styles.mapArrowBtn}>
-              <Ionicons name="navigate" size={14} color="#FFF" />
-            </View>
-          </TouchableOpacity>
-
-          {/* Description */}
-          <Text style={[styles.description, { color: colors.textMuted }]}>{facility.description}</Text>
-
-          {/* Amenities Grid */}
-          {facility.amenities && facility.amenities.length > 0 && (
-            <>
-              <Text style={[styles.sectionHeader, { color: colors.textMuted }]}>CENTER AMENITIES</Text>
-              <View style={styles.amenitiesGrid}>
-                {facility.amenities.map((am) => (
-                  <View key={am.id} style={styles.amenityChip}>
-                    <Ionicons name="checkmark-circle" size={15} color={colors.primary} />
-                    <Text style={[styles.amenityText, { color: colors.onSurface }]}>{am.name}</Text>
-                  </View>
-                ))}
-              </View>
-            </>
-          )}
-
-          {/* Physical Center Activation Notice */}
-          <View style={{ marginTop: SPACING.md }}>
-            <NoticeBanner message="Visit center reception desk to activate membership pass & get credits loaded onto your account." />
+          <View style={styles.addressRow}>
+            <Ionicons name="location-outline" size={14} color={COLORS.primary} style={{ marginTop: 2 }} />
+            <Text style={styles.addressText}>{facility.address}</Text>
           </View>
 
-          {/* Membership Plans List */}
-          <Text style={[styles.sectionHeader, { color: colors.textMuted }]}>MEMBERSHIP PLANS ({facilityPlans.length})</Text>
+          <View style={styles.factsRow}>
+            <View style={styles.factPill}>
+              <View style={styles.openDot} />
+              <Text style={styles.factText}>{facility.operatingHours || 'Open today'}</Text>
+            </View>
+            {facility.distance && facility.distance !== 'Distance N/A' && (
+              <View style={styles.factPill}>
+                <Text style={styles.factText}>{facility.distance} away</Text>
+              </View>
+            )}
+            {activityCount > 0 && (
+              <View style={styles.factPill}>
+                <Text style={styles.factText}>{activityCount} activities</Text>
+              </View>
+            )}
+          </View>
+
+          {!!facility.description && <Text style={styles.description}>{facility.description}</Text>}
+
+          {facility.amenities && facility.amenities.length > 0 && (
+            <View style={styles.amenityList}>
+              {facility.amenities.map((am) => (
+                <View key={am.id} style={styles.amenityChip}>
+                  <Text style={styles.amenityText}>{am.name}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(120).duration(340).damping(24)} style={styles.section}>
+          <SectionHead
+            eyebrow="Find it"
+            title="Location"
+            meta={facility.distance || 'Nearby'}
+          />
+          <View style={styles.mapCard}>
+            <View style={styles.mapCanvas}>
+              {leafletHtml ? (
+                <>
+                  <WebView
+                    source={{ html: leafletHtml }}
+                    style={styles.mapWebview}
+                    scrollEnabled={false}
+                    javaScriptEnabled
+                    domStorageEnabled={false}
+                    originWhitelist={['*']}
+                    pointerEvents="none"
+                    androidLayerType="hardware"
+                  />
+                  <Pressable
+                    onPress={handleOpenGoogleMaps}
+                    style={StyleSheet.absoluteFill}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${facility.name} in Maps`}
+                  />
+                </>
+              ) : (
+                <View style={styles.mapFallback}>
+                  <Ionicons name="location-outline" size={26} color={COLORS.primary} />
+                  <Text style={styles.mapFallbackText} numberOfLines={2}>
+                    {facility.address}
+                  </Text>
+                  <Text style={styles.mapFallbackHint}>Tap “Open in Maps” for the live location</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.locationBody}>
+              <Text style={styles.locationAddress}>{facility.address}</Text>
+              <TouchableOpacity
+                onPress={() => setRouteOpen((v) => !v)}
+                activeOpacity={0.7}
+                style={styles.directionsToggle}
+              >
+                <Text style={styles.directionsToggleText}>Directions</Text>
+                <Ionicons
+                  name={routeOpen ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={COLORS.primary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {routeOpen && (
+              <View style={styles.routePanel}>
+                <View style={styles.routeStat}>
+                  <Text style={styles.routeValue}>{driveTime}</Text>
+                  <Text style={styles.routeLabel}>Drive</Text>
+                </View>
+                <View style={styles.routeStat}>
+                  <Text style={styles.routeValue}>{walkTime}</Text>
+                  <Text style={styles.routeLabel}>Walk</Text>
+                </View>
+                <View style={styles.routeStat}>
+                  <Text style={styles.routeValue}>{facility.distance || `${distanceKm} km`}</Text>
+                  <Text style={styles.routeLabel}>Distance</Text>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              onPress={handleOpenGoogleMaps}
+              activeOpacity={0.8}
+              style={styles.openMapsRow}
+            >
+              <MaterialCommunityIcons name="google-maps" size={16} color={COLORS.primary} />
+              <Text style={styles.openMapsText}>OPEN IN MAPS</Text>
+              <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(170).duration(340).damping(24)} style={styles.section}>
+          <SectionHead
+            eyebrow="Go more often"
+            title="Membership plans"
+            meta={`${filteredPlans.length} option${filteredPlans.length === 1 ? '' : 's'}`}
+          />
+
+          <NoticeBanner message="Visit the center reception desk to activate a membership pass and get credits loaded onto your account." />
+
+          {facilityPlans.length > 1 && (
+            <View style={styles.filterPanel}>
+              {sportOptions.length > 0 && (
+                <View style={styles.filterGroup}>
+                  <Text style={styles.filterLabel}>SPORT</Text>
+                  <View style={styles.chipRow}>
+                    {sportOptions.map((sport) => {
+                      const isActive = selectedSports.includes(sport);
+                      return (
+                        <Pressable
+                          key={sport}
+                          onPress={() => toggleSport(sport)}
+                          style={[styles.filterChip, isActive && styles.filterChipActive]}
+                        >
+                          <MaterialCommunityIcons
+                            name={getActivityIcon(sport)}
+                            size={13}
+                            color={isActive ? COLORS.onPrimary : COLORS.primary}
+                          />
+                          <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                            {sport.toUpperCase()}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>VALIDITY</Text>
+                <View style={styles.chipRow}>
+                  {([
+                    { key: 'upto1m', label: 'UP TO 1 MO' },
+                    { key: '1to3m', label: '1–3 MO' },
+                    { key: '3to6m', label: '3–6 MO' },
+                    { key: '6plus', label: '6+ MO' },
+                  ] as const).map((opt) => {
+                    const isActive = selectedValidity.includes(opt.key);
+                    return (
+                      <Pressable
+                        key={opt.key}
+                        onPress={() => toggleValidity(opt.key)}
+                        style={[styles.filterChip, isActive && styles.filterChipActive]}
+                      >
+                        <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+              {hasPlanFilters && (
+                <Pressable
+                  onPress={() => {
+                    setSelectedSports([]);
+                    setSelectedValidity([]);
+                  }}
+                  style={styles.filterClearRow}
+                >
+                  <Text style={styles.filterClearText}>CLEAR FILTERS</Text>
+                  <Ionicons name="close" size={13} color={COLORS.primary} />
+                </Pressable>
+              )}
+            </View>
+          )}
 
           {loadingPlans ? (
-            <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} />
+            <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 24 }} />
           ) : facilityPlans.length === 0 ? (
-            <View style={styles.emptyPlansCard}>
-              <Ionicons name="card-outline" size={32} color={colors.textMuted} />
-              <Text style={[styles.emptyPlansText, { color: colors.textMuted }]}>No active membership plans listed online.</Text>
-            </View>
-          ) : (
-            facilityPlans.map((plan) => {
-              const planIcon = getActivityIcon(plan.validActivities?.[0] || facility.category);
-              const subline =
-                plan.description?.trim() ||
-                (plan.validActivities?.length
-                  ? plan.validActivities.slice(0, 3).join(' · ')
-                  : `Valid ${plan.durationDays} days`);
-              const priceText = isNaN(Number(plan.price)) ? plan.price : `₹${plan.price}`;
-              const savings =
-                plan.hasDiscount && plan.originalPrice
-                  ? Math.max(0, Number(plan.originalPrice) - Number(plan.price))
-                  : 0;
-
-              return (
-                <TouchableOpacity
-                  key={plan.id}
-                  style={[styles.passWrapper, SHADOWS.card]}
-                  onPress={() =>
-                    navigation.navigate('PlanDetail', {
-                      plan,
-                      facilityName: facility.name,
-                    })
-                  }
-                  activeOpacity={0.9}
+            <ArenaEmptyState
+              icon="card-outline"
+              title="No plans listed online"
+              copy="This arena has no active membership plans right now. Check back soon or ask at reception."
+            />
+          ) : filteredPlans.length === 0 ? (
+            <ArenaEmptyState
+              icon="filter-outline"
+              title="No plans match those filters"
+              copy="Try a different sport or validity range."
+              action={
+                <Pressable
+                  onPress={() => {
+                    setSelectedSports([]);
+                    setSelectedValidity([]);
+                  }}
+                  style={{ marginTop: 4 }}
                 >
-                  <LinearGradient
-                    colors={['#281409', '#181414', '#141417']}
-                    locations={[0, 0.55, 1]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.passCard}
+                  <Text style={styles.clearLink}>CLEAR FILTERS</Text>
+                </Pressable>
+              }
+            />
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.planRail}
+              style={styles.planRailScroll}
+            >
+              {filteredPlans.map((plan, index) => {
+                const planIcon = getActivityIcon(plan.validActivities?.[0] || facility.category);
+                const subline =
+                  plan.description?.trim() ||
+                  (plan.validActivities?.length
+                    ? plan.validActivities.slice(0, 3).join(' · ')
+                    : `Valid ${plan.durationDays} days`);
+                const savings =
+                  plan.hasDiscount && plan.originalPrice
+                    ? Math.max(0, Number(plan.originalPrice) - Number(plan.price))
+                    : 0;
+                const featured = index === 0;
+
+                return (
+                  <TouchableOpacity
+                    key={plan.id}
+                    onPress={() => navigation.navigate('PlanDetail', { plan, facilityName: facility.name })}
+                    activeOpacity={0.9}
+                    style={[styles.planCard, featured && styles.planCardFeatured]}
                   >
-                    <LinearGradient
-                      colors={[
-                        'rgba(255,90,31,0)',
-                        'rgba(255,122,61,0.75)',
-                        'rgba(233,181,76,0.45)',
-                        'rgba(255,90,31,0)',
-                      ]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={{ height: 2, width: '100%' }}
-                    />
-                    <MaterialCommunityIcons
-                      name={planIcon}
-                      size={132}
-                      color="rgba(255,90,31,0.06)"
-                      style={styles.passDecor}
-                    />
-
-                    <View style={{ padding: 18, paddingBottom: 14 }}>
-                      <View style={styles.passHeader}>
-                        <LinearGradient
-                          colors={['#F2C05F', '#C98A27']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={styles.passMark}
-                        >
-                          <MaterialCommunityIcons name={planIcon} size={17} color="#1E1710" />
-                        </LinearGradient>
-                        <View style={styles.passCreditsCol}>
-                          <View style={styles.passCreditsRow}>
-                            <Text style={styles.passCreditsNum}>{plan.creditsGranted}</Text>
-                            <Text style={styles.passCreditsWord}>credits</Text>
-                          </View>
-                          <Text style={styles.passCreditsOf}>{plan.durationDays} DAY PASS</Text>
-                        </View>
+                    <View style={styles.planHead}>
+                      <View
+                        style={[
+                          styles.planTag,
+                          featured && {
+                            backgroundColor: COLORS.primaryMuted,
+                            borderColor: COLORS.primaryBorder,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.planTagText, featured && { color: COLORS.primary }]}>
+                          {savings > 0 ? `SAVE ₹${savings}` : featured ? 'MOST POPULAR' : 'MEMBERSHIP'}
+                        </Text>
                       </View>
-
-                      <Text style={styles.passTitle} numberOfLines={2}>
-                        {plan.title}
-                      </Text>
-                      <Text style={styles.passSub} numberOfLines={1}>
-                        {subline}
-                      </Text>
+                      <MaterialCommunityIcons
+                        name={planIcon}
+                        size={18}
+                        color={featured ? COLORS.primary : COLORS.meta}
+                      />
                     </View>
 
-                    <View style={styles.passFooter}>
-                      <View>
-                        <View style={styles.priceLabelRow}>
-                          <Text style={styles.passPriceLabel}>CENTER RATE</Text>
-                          {savings > 0 && (
-                            <View style={styles.saveChip}>
-                              <Text style={styles.saveChipText}>SAVE ₹{savings}</Text>
-                            </View>
-                          )}
-                        </View>
-                        <View style={styles.priceRow}>
-                          <Text style={styles.passPrice}>{priceText}</Text>
-                          {savings > 0 && (
-                            <Text style={styles.passPriceStrike}>{`₹${plan.originalPrice}`}</Text>
-                          )}
-                        </View>
-                      </View>
-                      <View style={[styles.passBtn, SHADOWS.ember]}>
-                        <Text style={styles.passBtnText}>VIEW PASS</Text>
-                        <Ionicons name="arrow-forward" size={13} color={COLORS.onPrimary} />
-                      </View>
+                    <Text style={styles.planName} numberOfLines={2}>
+                      {plan.title}
+                    </Text>
+                    <Text style={styles.planSummary} numberOfLines={2}>
+                      {subline}
+                    </Text>
+
+                    <View style={styles.planCreditLine}>
+                      <Text style={styles.planCreditValue}>{plan.creditsGranted}</Text>
+                      <Text style={styles.planCreditLabel}>CREDITS</Text>
                     </View>
-                  </LinearGradient>
-                </TouchableOpacity>
-              );
-            })
+
+                    <View style={styles.planMeta}>
+                      <Text style={styles.planMetaText}>{plan.durationDays} days</Text>
+                      <Text style={styles.planPrice}>{formatPrice(plan.price)}</Text>
+                    </View>
+
+                    <View style={[styles.planView, featured && styles.planViewFeatured]}>
+                      <Text style={[styles.planViewText, featured && { color: COLORS.onPrimary }]}>
+                        VIEW PASS
+                      </Text>
+                      <Ionicons
+                        name="arrow-forward"
+                        size={14}
+                        color={featured ? COLORS.onPrimary : COLORS.paper}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           )}
-        </View>
+
+          <Text style={styles.accessNote}>
+            Plans work across participating ULTIM venues. Credits are deducted at booking.
+          </Text>
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -423,341 +684,494 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  floatingBackBtn: {
-    position: 'absolute',
-    left: SPACING.containerPadding,
-    zIndex: 100,
-  },
   scrollContent: {
-    paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.containerPadding,
   },
-  heroContainer: {
-    height: 240,
-    width: '100%',
-    position: 'relative',
-    backgroundColor: COLORS.glassHigh,
+  openChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.full,
+  },
+  openDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: COLORS.success,
+  },
+  openChipText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    letterSpacing: 0.7,
+  },
+  gallery: {
+    gap: 8,
+  },
+  galleryFrame: {
+    width: GALLERY_WIDTH,
+    aspectRatio: 4 / 3,
+    overflow: 'hidden',
+    borderRadius: RADIUS.panel,
+    backgroundColor: COLORS.surfaceBright,
   },
   carouselSlide: {
-    width: SCREEN_WIDTH,
-    height: 240,
-    position: 'relative',
+    width: GALLERY_WIDTH,
+    height: GALLERY_WIDTH * 0.75,
   },
   heroImage: {
     width: '100%',
     height: '100%',
   },
-  heroGradient: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(5, 5, 6, 0.30)',
-  },
-  dotsContainer: {
-    position: 'absolute',
-    bottom: 12,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    marginHorizontal: 3,
-  },
-  activeDot: {
-    width: 16,
-    backgroundColor: COLORS.primary,
-  },
   placeholderHero: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.glassHigh,
+    gap: 8,
   },
   placeholderHeroText: {
-    fontSize: 10,
+    color: COLORS.meta,
     fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
-    marginTop: 8,
-    letterSpacing: 0.5,
+    fontSize: 9,
+    letterSpacing: 1,
   },
-  heroBadgeRow: {
+  galleryCount: {
     position: 'absolute',
-    bottom: 12,
-    right: SPACING.containerPadding,
-    flexDirection: 'row',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  ratingBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(12, 12, 15, 0.85)',
+    top: 10,
+    left: 10,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: RADIUS.full,
-    marginLeft: 8,
+    backgroundColor: 'rgba(10,11,13,0.76)',
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: 'rgba(255,255,255,0.16)',
   },
-  ratingVal: {
-    color: COLORS.onSurface,
-    fontSize: 12,
-    fontFamily: FONTS.bold,
-    marginLeft: 4,
-  },
-  mainContent: {
-    padding: SPACING.containerPadding,
-  },
-  title: {
-    fontSize: 24,
+  galleryCountText: {
+    color: COLORS.paper,
     fontFamily: FONTS.extraBold,
-    letterSpacing: -0.3,
-    lineHeight: 30,
-    color: COLORS.onSurface,
+    fontSize: 9,
+    letterSpacing: 0.7,
   },
-  addressText: {
-    fontSize: 13,
-    fontFamily: FONTS.medium,
-    lineHeight: 18,
-  },
-  locationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#181818',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    padding: 12,
-    marginTop: 12,
-  },
-  locationIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(234,67,53,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  locationTextCol: {
-    flex: 1,
-    gap: 3,
-  },
-  directionsHint: {
-    fontSize: 11,
-    fontFamily: FONTS.bold,
-    color: GOOGLE_MAPS_RED,
-    letterSpacing: 0.4,
-  },
-  mapArrowBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: RADIUS.full,
-    backgroundColor: GOOGLE_MAPS_RED,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hoursRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  hoursText: {
-    fontSize: 12,
-    fontFamily: FONTS.bold,
-    color: COLORS.secondary,
-    marginLeft: 4,
-  },
-  description: {
-    fontSize: 13,
-    fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
-    lineHeight: 20,
-    marginTop: SPACING.sm,
-  },
-  sectionHeader: {
-    fontSize: 12,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.onSurface,
-    letterSpacing: 0.5,
-    marginTop: SPACING.md,
-    marginBottom: SPACING.xs,
-  },
-  amenitiesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  amenityChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#181818',
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    borderRadius: RADIUS.full,
-    marginRight: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-  },
-  amenityText: {
-    fontSize: 11.5,
-    color: COLORS.onSurface,
-    marginLeft: 6,
-    fontFamily: FONTS.semiBold,
-  },
-  emptyPlansCard: {
-    backgroundColor: '#181818',
-    borderRadius: 14,
-    padding: SPACING.md,
-    alignItems: 'center',
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-  },
-  emptyPlansText: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    lineHeight: 17,
-    color: COLORS.textMuted,
-    marginTop: 6,
-  },
-  passWrapper: {
-    marginTop: 12,
-    borderRadius: 18,
-  },
-  passCard: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,122,61,0.32)',
-  },
-  passDecor: {
+  galleryArrow: {
     position: 'absolute',
-    right: -24,
-    top: 24,
-    transform: [{ rotate: '-14deg' }],
+    top: '50%',
+    marginTop: -22,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(10,11,13,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  passHeader: {
+  thumbRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  thumb: {
+    flex: 1,
+    aspectRatio: 16 / 10,
+    overflow: 'hidden',
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.surfaceBright,
+  },
+  thumbActive: {
+    borderColor: COLORS.primary,
+    borderWidth: 2,
+  },
+  thumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  venueBlock: {
+    marginTop: 22,
+  },
+  venueHeadingRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    gap: 12,
   },
-  passMark: {
-    width: 38,
-    height: 28,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
+  venueName: {
+    flex: 1,
+    marginTop: 5,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 40,
+    lineHeight: 37,
+    letterSpacing: 0.45,
+    textTransform: 'uppercase',
   },
-  passCreditsCol: {
-    alignItems: 'flex-end',
-  },
-  passCreditsRow: {
+  venueRating: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
+    gap: 4,
+    paddingTop: 6,
+  },
+  venueRatingText: {
+    color: COLORS.paper,
+    fontFamily: FONTS.extraBold,
+    fontSize: 12,
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 6,
+    marginTop: 10,
   },
-  passCreditsNum: {
-    fontSize: 25,
-    fontFamily: FONTS.black,
-    letterSpacing: -0.8,
-    color: '#FFFFFF',
+  addressText: {
+    flex: 1,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    lineHeight: 18,
   },
-  passCreditsWord: {
-    fontSize: 13.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: -0.2,
-    color: COLORS.textMuted,
-  },
-  passCreditsOf: {
-    fontSize: 8.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.3,
-    marginTop: 3,
-    color: 'rgba(255,255,255,0.42)',
-  },
-  passTitle: {
-    fontSize: 25,
-    fontFamily: FONTS.black,
-    letterSpacing: -0.7,
-    lineHeight: 29,
-    color: '#FFFFFF',
-  },
-  passSub: {
-    fontSize: 13,
-    fontFamily: FONTS.semiBold,
-    marginTop: 4,
-    color: COLORS.textMuted,
-  },
-  passFooter: {
+  factsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(10,10,12,0.72)',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.07)',
-  },
-  priceLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    flexWrap: 'wrap',
     gap: 8,
+    marginTop: 14,
   },
-  saveChip: {
-    paddingHorizontal: 7,
-    paddingVertical: 1.5,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.goldPanel,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.goldBorder,
-  },
-  saveChipText: {
-    fontSize: 7.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: 0.8,
-    color: COLORS.secondary,
-  },
-  passPriceStrike: {
-    fontSize: 12.5,
-    fontFamily: FONTS.medium,
-    color: 'rgba(255,255,255,0.38)',
-    textDecorationLine: 'line-through',
-  },
-  passPriceLabel: {
-    fontSize: 8.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.3,
-    color: 'rgba(255,255,255,0.42)',
-  },
-  passPrice: {
-    fontSize: 20,
-    fontFamily: FONTS.black,
-    letterSpacing: -0.4,
-    marginTop: 2,
-    color: '#FFFFFF',
-  },
-  passBtn: {
+  factPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 14,
-    height: 34,
+    minHeight: 28,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: COLORS.line,
     borderRadius: RADIUS.full,
+  },
+  factText: {
+    color: COLORS.paperDim,
+    fontFamily: FONTS.bold,
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  description: {
+    marginTop: 16,
+    color: COLORS.paperDim,
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  amenityList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  amenityChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surface,
+  },
+  amenityText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  section: {
+    marginTop: 30,
+  },
+  mapCard: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.panel,
+    backgroundColor: COLORS.surface,
+  },
+  mapCanvas: {
+    height: 150,
+    backgroundColor: '#101410',
+  },
+  mapWebview: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#101410',
+  },
+  mapFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 24,
+  },
+  mapFallbackText: {
+    color: COLORS.paperDim,
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+  },
+  mapFallbackHint: {
+    color: COLORS.meta,
+    fontFamily: FONTS.regular,
+    fontSize: 10,
+    lineHeight: 14,
+    textAlign: 'center',
+  },
+  filterPanel: {
+    gap: 12,
+    marginBottom: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
+  },
+  filterGroup: {
+    gap: 8,
+  },
+  filterLabel: {
+    color: COLORS.meta,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.9,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    minHeight: 34,
+    paddingHorizontal: 11,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surfaceBright,
+  },
+  filterChipActive: {
+    borderColor: COLORS.primary,
     backgroundColor: COLORS.primary,
   },
-  passBtnText: {
-    fontSize: 10,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.2,
+  filterChipText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.5,
+  },
+  filterChipTextActive: {
     color: COLORS.onPrimary,
+  },
+  filterClearRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    minHeight: 32,
+  },
+  filterClearText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9.5,
+    lineHeight: 12,
+    letterSpacing: 0.8,
+  },
+  clearLink: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 0.9,
+  },
+  locationBody: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 4,
+  },
+  locationAddress: {
+    color: COLORS.paperDim,
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  directionsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+  },
+  directionsToggleText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  routePanel: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  routeStat: {
+    flex: 1,
+    gap: 3,
+    padding: 10,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surfaceBright,
+  },
+  routeValue: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 23,
+    lineHeight: 24,
+    letterSpacing: 0.3,
+  },
+  routeLabel: {
+    color: COLORS.muted,
+    fontFamily: FONTS.bold,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  openMapsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lineSoft,
+  },
+  openMapsText: {
+    flex: 1,
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  planRailScroll: {
+    marginHorizontal: -SPACING.containerPadding,
+  },
+  planRail: {
+    gap: 12,
+    paddingHorizontal: SPACING.containerPadding,
+    paddingBottom: 4,
+  },
+  planCard: {
+    width: 284,
+    gap: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
+  },
+  planCardFeatured: {
+    borderColor: 'rgba(255,106,26,0.64)',
+    backgroundColor: '#17110D',
+  },
+  planHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  planTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.full,
+  },
+  planTagText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 8.5,
+    lineHeight: 10,
+    letterSpacing: 0.7,
+  },
+  planName: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 29,
+    lineHeight: 27,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  planSummary: {
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  planCreditLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 5,
+    marginTop: 2,
+  },
+  planCreditValue: {
+    color: COLORS.primary,
+    fontFamily: FONTS.display,
+    fontSize: 40,
+    lineHeight: 38,
+    letterSpacing: 0.3,
+  },
+  planCreditLabel: {
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    letterSpacing: 0.8,
+  },
+  planMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  planMetaText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+  },
+  planPrice: {
+    color: COLORS.paper,
+    fontFamily: FONTS.extraBold,
+    fontSize: 14,
+  },
+  planView: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+    paddingHorizontal: 12,
+    marginTop: 2,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 12,
+  },
+  planViewFeatured: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+  planViewText: {
+    color: COLORS.paper,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 0.9,
+  },
+  accessNote: {
+    marginTop: 12,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

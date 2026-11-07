@@ -110,7 +110,7 @@ export const ForceUpdateScreen: React.FC<UpdateGateProps> = ({
   return (
     <View style={styles.forceRoot}>
       <LinearGradient
-        colors={['#2A130A', COLORS.background, '#070707']}
+        colors={[COLORS.background, COLORS.background, COLORS.background]}
         locations={[0, 0.45, 1]}
         style={StyleSheet.absoluteFill}
       />
@@ -133,7 +133,7 @@ export const ForceUpdateScreen: React.FC<UpdateGateProps> = ({
         >
           <View style={styles.heroOrb}>
             <LinearGradient
-              colors={['rgba(255,90,31,0.28)', 'rgba(255,90,31,0.04)']}
+              colors={['rgba(255,106,26,0.28)', 'rgba(255,106,26,0.04)']}
               style={StyleSheet.absoluteFill}
             />
             <Ionicons name="cloud-download-outline" size={38} color={COLORS.primary} />
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     width: 320,
     height: 320,
     borderRadius: 160,
-    backgroundColor: 'rgba(255,90,31,0.13)',
+    backgroundColor: 'rgba(255,106,26,0.05)',
   },
   glowBottom: {
     position: 'absolute',
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     width: 340,
     height: 340,
     borderRadius: 170,
-    backgroundColor: 'rgba(233,181,76,0.06)',
+    backgroundColor: 'rgba(255,106,26,0.03)',
   },
   brandRow: {
     flexDirection: 'row',
@@ -282,10 +282,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   brandWord: {
-    color: COLORS.onSurface,
-    fontFamily: FONTS.black,
-    fontSize: 20,
-    letterSpacing: 2.4,
+    color: COLORS.paper,
+    fontFamily: FONTS.displayBold,
+    fontSize: 23,
+    letterSpacing: 3,
   },
   brandPill: {
     flexDirection: 'row',
@@ -328,25 +328,27 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     color: COLORS.primary,
-    fontFamily: FONTS.bold,
-    fontSize: 10.5,
-    letterSpacing: 2,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
   forceTitle: {
-    color: COLORS.onSurface,
-    fontFamily: FONTS.black,
-    fontSize: 32,
-    lineHeight: 37,
-    letterSpacing: -0.9,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 46,
+    lineHeight: 42,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
     maxWidth: 320,
   },
   forceMessage: {
     marginTop: 12,
-    color: COLORS.textMuted,
+    color: COLORS.muted,
     fontFamily: FONTS.regular,
-    fontSize: 14.5,
-    lineHeight: 22,
+    fontSize: 13.5,
+    lineHeight: 21,
     maxWidth: 340,
   },
   versionRow: {
@@ -388,10 +390,10 @@ const styles = StyleSheet.create({
   notesCard: {
     marginTop: 22,
     padding: 14,
-    borderRadius: RADIUS.lg,
-    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surfaceBright,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.line,
     gap: 8,
   },
   notesTitle: {
@@ -428,8 +430,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   primaryButton: {
-    height: 56,
-    borderRadius: RADIUS.pill,
+    height: 54,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -466,10 +468,10 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: RADIUS.panel,
+    borderTopRightRadius: RADIUS.panel,
     borderTopWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.line,
     paddingHorizontal: 20,
     paddingTop: 10,
   },
@@ -507,11 +509,12 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   sheetTitle: {
-    color: COLORS.onSurface,
-    fontFamily: FONTS.bold,
-    fontSize: 19,
-    lineHeight: 24,
-    letterSpacing: -0.3,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 27,
+    lineHeight: 26,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   sheetMessage: {
     marginTop: 12,
@@ -530,12 +533,12 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     height: 50,
-    borderRadius: RADIUS.pill,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceLow,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.surfaceBright,
   },
   secondaryButtonText: {
     color: COLORS.onSurfaceVariant,

@@ -8,9 +8,9 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
-import { BlurHeader, useBlurBackHeaderLayout } from '../components/Blur';
-import { IconButton } from '../components/buttons';
+import { DetailTopBar, PageHead } from '../components/ArenaUI';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
 
@@ -127,7 +127,7 @@ const TERMS: Section[] = [
 export const LegalScreen: React.FC<LegalScreenProps> = ({ navigation, route }) => {
   const type: LegalType = route?.params?.type === 'terms' ? 'terms' : 'privacy';
   const { colors } = useApp();
-  const { top: headerTop, height: headerHeight } = useBlurBackHeaderLayout();
+  const insets = useSafeAreaInsets();
 
   const title = type === 'privacy' ? 'Privacy Policy' : 'Terms of Service';
   const sections = type === 'privacy' ? PRIVACY : TERMS;
@@ -137,24 +137,28 @@ export const LegalScreen: React.FC<LegalScreenProps> = ({ navigation, route }) =
       <AppBackground />
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 24 }]}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: Math.max(insets.top, 12) + 4,
+            paddingBottom: Math.max(insets.bottom, 16) + 24,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.title, { color: colors.onSurface }]}>{title}</Text>
-        <Text style={[styles.updated, { color: colors.textMuted }]}>
-          Last updated: January 2026
-        </Text>
+        <DetailTopBar label="Legal" onBack={() => navigation.goBack()} />
+        <PageHead
+          eyebrow="The fine print"
+          title={type === 'privacy' ? 'Privacy' : 'Terms'}
+          accent={type === 'privacy' ? ' policy' : ' of service'}
+          sub={`Last updated: January 2026`}
+        />
 
         {sections.map((section) => (
-          <View
-            key={section.heading}
-            style={[styles.sectionCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-          >
-            <Text style={[styles.sectionHeading, { color: colors.onSurface }]}>
-              {section.heading}
-            </Text>
+          <View key={section.heading} style={styles.sectionCard}>
+            <Text style={styles.sectionHeading}>{section.heading}</Text>
             {section.body.map((paragraph, i) => (
-              <Text key={i} style={[styles.paragraph, { color: colors.textMuted }]}>
+              <Text key={i} style={styles.paragraph}>
                 {paragraph}
               </Text>
             ))}
@@ -162,40 +166,16 @@ export const LegalScreen: React.FC<LegalScreenProps> = ({ navigation, route }) =
         ))}
 
         <TouchableOpacity
-          style={[styles.contactBtn, { backgroundColor: colors.emberPanel, borderColor: colors.emberBorder }]}
+          style={styles.contactBtn}
           onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
           activeOpacity={0.85}
         >
-          <Ionicons name="mail-outline" size={16} color={colors.primary} />
-          <Text style={[styles.contactText, { color: colors.primary }]}>Contact support</Text>
+          <Ionicons name="mail-outline" size={16} color={COLORS.primary} />
+          <Text style={styles.contactText}>Contact support</Text>
         </TouchableOpacity>
 
-        <Text style={[styles.footer, { color: 'rgba(255,255,255,0.32)' }]}>
-          ULTIM · {SUPPORT_EMAIL}
-        </Text>
+        <Text style={styles.footer}>ULTIM · {SUPPORT_EMAIL}</Text>
       </ScrollView>
-
-      <BlurHeader
-        height={headerHeight}
-        contentStyle={{
-          paddingTop: headerTop,
-          paddingHorizontal: SPACING.containerPadding,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <IconButton
-          icon="arrow-back"
-          size={40}
-          iconSize={22}
-          iconColor={colors.onSurface}
-          backgroundColor={colors.glassHigh}
-          onPress={() => navigation.goBack()}
-        />
-        <Text style={[styles.headerTitle, { color: colors.onSurface }]}>{title}</Text>
-        <View style={{ width: 40 }} />
-      </BlurHeader>
     </View>
   );
 };
@@ -205,64 +185,57 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  headerTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 0.5,
-  },
   content: {
     paddingHorizontal: SPACING.containerPadding,
-    paddingBottom: SPACING.xl,
-  },
-  title: {
-    fontSize: 26,
-    fontFamily: FONTS.bold,
-    letterSpacing: -0.5,
-  },
-  updated: {
-    fontSize: 11.5,
-    fontFamily: FONTS.medium,
-    marginTop: 4,
-    marginBottom: SPACING.md,
   },
   sectionCard: {
-    borderRadius: RADIUS.card,
-    borderWidth: 1,
+    gap: 8,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
   },
   sectionHeading: {
-    fontSize: 14.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: -0.2,
-    marginBottom: 8,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 23,
+    lineHeight: 23,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   paragraph: {
-    fontSize: 13,
+    color: COLORS.muted,
     fontFamily: FONTS.regular,
+    fontSize: 12.5,
     lineHeight: 20,
-    marginBottom: 8,
   },
   contactBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    height: 48,
-    borderRadius: RADIUS.full,
+    minHeight: 50,
+    marginTop: 4,
     borderWidth: 1,
-    marginTop: 6,
+    borderColor: COLORS.primaryBorder,
+    borderRadius: 14,
+    backgroundColor: COLORS.primaryMuted,
   },
   contactText: {
-    fontSize: 12,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.2,
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 11,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   footer: {
-    textAlign: 'center',
-    fontSize: 10.5,
-    fontFamily: FONTS.medium,
     marginTop: 22,
+    color: COLORS.meta,
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
 });

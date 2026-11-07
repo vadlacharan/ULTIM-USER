@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Animated,
   Alert,
   TouchableOpacity,
   RefreshControl,
@@ -14,26 +13,41 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Reanimated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
-import { BlurHeader, useBlurHeaderLayout } from '../components/Blur';
 import { useTabBarClearance } from '../navigation/BlurTabBar';
 import { QRCodeModal } from '../components/QRCodeModal';
 import { CreditIcon } from '../components/CreditIcon';
-import { GradientButton, OutlineButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
+import { ArenaEmptyState, PageHead } from '../components/ArenaUI';
 import { api } from '../services/api';
 import { Booking } from '../types';
+import { formatClock } from '../utils/display';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type BookingTab = 'UPCOMING' | 'PAST';
 const TABS: BookingTab[] = ['UPCOMING', 'PAST'];
 
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+const dateParts = (dateStr: string) => {
+  const source = dateStr === 'Today' ? new Date() : new Date(dateStr);
+  if (isNaN(source.getTime())) {
+    return { month: 'DATE', day: '--', weekday: '' };
+  }
+  return {
+    month: MONTHS[source.getMonth()],
+    day: String(source.getDate()).padStart(2, '0'),
+    weekday: WEEKDAYS[source.getDay()],
+  };
+};
+
 export const BookingsScreen: React.FC = () => {
   const { bookings, refreshData, refreshBookingsAndPasses, colors } = useApp();
-  // 44 extra = 8px gap + ~36px sub-tab row floating inside the blur header
-  const { top: headerTop, height: headerHeight } = useBlurHeaderLayout(44);
+  const insets = useSafeAreaInsets();
   const tabBarClearance = useTabBarClearance();
 
   const [activeSubTab, setActiveSubTab] = useState<BookingTab>('UPCOMING');
@@ -43,10 +57,6 @@ export const BookingsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
   const pagerRef = useRef<ScrollView>(null);
-  // Drives the sliding tab-pill indicator directly off the native scroll
-  // position (native driver) so it tracks the finger 1:1 while dragging,
-  // instead of only updating once the swipe settles.
-  const scrollX = useRef(new Animated.Value(0)).current;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -89,20 +99,11 @@ export const BookingsScreen: React.FC = () => {
     pagerRef.current?.scrollTo({ x: TABS.indexOf(tab) * SCREEN_WIDTH, animated });
   };
 
-  // Fires once per settle (not per-frame) — per-frame setState here
-  // re-rendered the whole pager at 60fps and dropped frames on Android.
   const handlePagerMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const page = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
     const tab = TABS[page] ?? TABS[0];
     setActiveSubTab((prev) => (prev === tab ? prev : tab));
   };
-
-  const pillWidth = (SCREEN_WIDTH - SPACING.containerPadding * 2) / TABS.length;
-  const pillTranslate = scrollX.interpolate({
-    inputRange: [0, SCREEN_WIDTH],
-    outputRange: [0, pillWidth],
-    extrapolate: 'clamp',
-  });
 
   const handleCancelBooking = (booking: Booking) => {
     Alert.alert(
@@ -143,11 +144,7 @@ export const BookingsScreen: React.FC = () => {
       setLoadingQRId(`${booking.id}-${qrMode}`);
       const res = await api.generateBookingQr(booking.id);
       if (res?.token) {
-        setSelectedBookingForQR({
-          ...booking,
-          qrCodePayload: res.token,
-          qrMode,
-        });
+        setSelectedBookingForQR({ ...booking, qrCodePayload: res.token, qrMode });
         return;
       }
     } catch (e) {
@@ -155,10 +152,7 @@ export const BookingsScreen: React.FC = () => {
     } finally {
       setLoadingQRId(null);
     }
-    setSelectedBookingForQR({
-      ...booking,
-      qrMode,
-    });
+    setSelectedBookingForQR({ ...booking, qrMode });
   };
 
   const renderBookingCard = (booking: Booking, index = 0) => {
@@ -166,152 +160,111 @@ export const BookingsScreen: React.FC = () => {
     const isUpcoming = getBookingTab(booking) === 'UPCOMING';
     const isCancelled = booking.status === 'CANCELLED';
     const checkedIn = !!String(booking.successfulCheckedInTime || '').trim();
+    const parts = dateParts(booking.dateStr);
+    const statusLabel = isCancelled ? 'CANCELLED' : checkedIn ? 'CHECKED IN' : isUpcoming ? 'CONFIRMED' : 'PAST';
+    const statusColor = isCancelled ? COLORS.meta : checkedIn ? COLORS.success : isUpcoming ? COLORS.success : COLORS.meta;
+    const qrLoading = loadingQRId === `${booking.id}-${qrMode}`;
 
     return (
-      <Reanimated.View entering={FadeInDown.delay(Math.min(index, 6) * 55).duration(340).damping(24)}>
-      <View
+      <Reanimated.View
         key={booking.id}
-        style={[
-          styles.bookingCard,
-          isCancelled && styles.bookingCardCancelled,
-        ]}
+        entering={FadeInDown.delay(Math.min(index, 6) * 50).duration(320).damping(24)}
       >
-        {/* ── Top row: status + credits ── */}
-        <View style={styles.ticketTopRow}>
-          <View
-            style={[
-              styles.statusPill,
-              {
-                backgroundColor: isCancelled
-                  ? 'rgba(255,255,255,0.06)'
-                  : checkedIn
-                    ? 'rgba(52,211,153,0.12)'
-                    : 'rgba(255,90,31,0.12)',
-                borderColor: isCancelled
-                  ? 'rgba(255,255,255,0.12)'
-                  : checkedIn
-                    ? 'rgba(52,211,153,0.35)'
-                    : 'rgba(255,90,31,0.35)',
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.statusDot,
-                {
-                  backgroundColor: isCancelled
-                    ? colors.textMuted
-                    : checkedIn
-                      ? COLORS.success
-                      : colors.primary,
-                },
-              ]}
-            />
-            <Text
-              style={[
-                styles.statusText,
-                {
-                  color: isCancelled
-                    ? colors.textMuted
-                    : checkedIn
-                      ? COLORS.success
-                      : colors.primary,
-                },
-              ]}
-            >
-              {isCancelled ? 'CANCELLED' : checkedIn ? 'CHECKED IN' : 'UPCOMING'}
+        <View style={[styles.bookingCard, !isUpcoming && styles.bookingCardExpired]}>
+          <View style={[styles.dateRail, !isUpcoming && styles.dateRailExpired]}>
+            <Text style={[styles.dateMonth, !isUpcoming && { color: COLORS.meta }]}>{parts.month}</Text>
+            <Text style={[styles.dateDay, !isUpcoming && { color: COLORS.muted }]}>{parts.day}</Text>
+            <Text style={[styles.dateWeekday, !isUpcoming && { color: COLORS.meta }]}>{parts.weekday}</Text>
+          </View>
+
+          <View style={styles.bookingInfo}>
+            <View style={styles.bookingTopRow}>
+              <View style={[styles.statusPill, { backgroundColor: `${statusColor}1A` }]}>
+                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+              </View>
+              <View style={styles.creditsPill}>
+                <CreditIcon size={13} />
+                <Text style={styles.creditsPillText}>{booking.creditsSpent}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.bookingTitle} numberOfLines={1}>
+              {booking.facilityName}
             </Text>
-          </View>
-          <View style={styles.creditsPill}>
-            <CreditIcon size={15} />
-            <Text style={[styles.creditsPillText, { color: colors.secondary }]}>
-              {booking.creditsSpent}
+            <Text style={styles.bookingMeta} numberOfLines={1}>
+              {(booking.sportType || '').toUpperCase()} · {booking.courtName}
             </Text>
-          </View>
-        </View>
+            <View style={styles.timeRow}>
+              <Ionicons name="time-outline" size={13} color={COLORS.primary} />
+              <Text style={styles.timeText}>
+                {(booking.timeSlotLabel || '').match(/^\d{1,2}:\d{2}/)
+                  ? formatClock((booking.timeSlotLabel || '').slice(0, 5))
+                  : booking.timeSlotLabel}
+              </Text>
+              <Text style={styles.dotSeparator}>·</Text>
+              <Text style={styles.durationText}>{booking.durationMins} MIN</Text>
+            </View>
 
-        {/* ── Identity ── */}
-        <Text style={[styles.facilityName, { color: colors.onSurface }]} numberOfLines={1}>
-          {booking.facilityName}
-        </Text>
-        <Text style={[styles.sportCourt, { color: colors.textMuted }]} numberOfLines={1}>
-          {(booking.sportType || '').toUpperCase()} • {booking.courtName}
-        </Text>
+            {isUpcoming && (
+              <View style={styles.cardActions}>
+                <TouchableOpacity
+                  onPress={() => handleOpenQR(booking, qrMode)}
+                  disabled={qrLoading}
+                  activeOpacity={0.82}
+                  style={[styles.qrPrimaryBtn, qrLoading && { opacity: 0.7 }]}
+                >
+                  <Ionicons name="qr-code-outline" size={16} color={COLORS.onPrimary} />
+                  <Text style={styles.qrPrimaryText}>
+                    {qrLoading ? 'LOADING…' : qrMode === 'CHECK_OUT' ? 'CHECK-OUT QR' : 'CHECK-IN QR'}
+                  </Text>
+                </TouchableOpacity>
 
-        {/* ── Perforation divider ── */}
-        <View style={styles.perforation}>
-          <View style={[styles.notch, styles.notchLeft, { backgroundColor: colors.background }]} />
-          <View style={styles.dashedLine} />
-          <View style={[styles.notch, styles.notchRight, { backgroundColor: colors.background }]} />
-        </View>
-
-        {/* ── Slot strip ── */}
-        <View style={styles.slotStrip}>
-          <View style={styles.slotCell}>
-            <Ionicons name="calendar-outline" size={13} color={colors.primary} />
-            <Text style={[styles.slotDetailText, { color: colors.onSurface }]}>{booking.dateStr}</Text>
-          </View>
-          <View style={styles.slotCell}>
-            <Ionicons name="time-outline" size={13} color={colors.primary} />
-            <Text style={[styles.slotDetailText, { color: colors.onSurface }]}>{booking.timeSlotLabel}</Text>
-          </View>
-        </View>
-
-        {isUpcoming && (
-          <View style={[styles.cardActions, styles.cardActionsStack]}>
-            <GradientButton
-              label={qrMode === 'CHECK_OUT' ? 'VIEW CHECK-OUT QR' : 'VIEW CHECK-IN QR'}
-              icon="qr-code-sharp"
-              variant={qrMode === 'CHECK_OUT' ? 'success' : 'primary'}
-              onPress={() => handleOpenQR(booking, qrMode)}
-              loading={loadingQRId === `${booking.id}-${qrMode}`}
-              fullWidth
-            />
-            {!booking.successfulCheckedInTime && (
-              <OutlineButton
-                label={cancellingId === booking.id ? 'CANCELLING…' : 'CANCEL SESSION'}
-                icon="close-circle-outline"
-                color={COLORS.error}
-                onPress={() => handleCancelBooking(booking)}
-                disabled={cancellingId === booking.id}
-                fullWidth
-                compact
-              />
+                {!checkedIn && (
+                  <TouchableOpacity
+                    onPress={() => handleCancelBooking(booking)}
+                    disabled={cancellingId === booking.id}
+                    activeOpacity={0.7}
+                    style={styles.cancelBtn}
+                  >
+                    <Ionicons name="close-outline" size={14} color={COLORS.meta} />
+                    <Text style={styles.cancelText}>
+                      {cancellingId === booking.id ? 'CANCELLING…' : 'CANCEL'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
           </View>
-        )}
-      </View>
+        </View>
       </Reanimated.View>
     );
   };
 
   const renderEmptyState = (tab: BookingTab) => (
-    <View style={[styles.emptyCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-      <Ionicons name="calendar-outline" size={44} color={colors.textMuted} />
-      <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>
-        No {tab === 'UPCOMING' ? 'upcoming' : 'past'} bookings
-      </Text>
-      <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-        {tab === 'UPCOMING'
+    <ArenaEmptyState
+      icon="calendar-outline"
+      title={`No ${tab === 'UPCOMING' ? 'upcoming' : 'past'} bookings`}
+      copy={
+        tab === 'UPCOMING'
           ? 'Book a court or gym slot using your active center credits from the Access tab.'
-          : 'Your completed and cancelled sessions will show up here.'}
-      </Text>
-    </View>
+          : 'Your completed and cancelled sessions will show up here.'
+      }
+    />
   );
 
-  const renderPage = (tab: BookingTab) => {
+  const renderList = (tab: BookingTab) => {
     const list = tab === 'UPCOMING' ? upcomingBookings : pastBookings;
     return (
       <View style={[styles.pagerPage, { width: SCREEN_WIDTH }]}>
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: headerHeight + 24, paddingBottom: tabBarClearance + 16 },
+            { paddingBottom: tabBarClearance + 16 },
           ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
-              progressViewOffset={headerHeight}
               refreshing={refreshing}
               onRefresh={onRefresh}
               tintColor={COLORS.primary}
@@ -320,6 +273,19 @@ export const BookingsScreen: React.FC = () => {
           }
         >
           {list.length === 0 ? renderEmptyState(tab) : list.map((b, i) => renderBookingCard(b, i))}
+
+          {tab === 'UPCOMING' && list.length > 0 && (
+            <View style={styles.footerAction}>
+              <TouchableOpacity
+                onPress={() => goToTab('PAST')}
+                activeOpacity={0.7}
+                style={styles.viewPastRow}
+              >
+                <Text style={styles.viewPastText}>VIEW PAST SESSIONS</Text>
+                <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       </View>
     );
@@ -328,60 +294,47 @@ export const BookingsScreen: React.FC = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppBackground />
-      {/* Swipeable pager — switch tabs with a horizontal swipe gesture */}
-      <Animated.ScrollView
+      {/* Sticky header — stays fixed while only the lists swipe underneath. */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 26 }]}>
+        <PageHead
+          eyebrow="Your next game"
+          title="Your"
+          accent=" bookings"
+          sub="Your reserved courts, classes and game nights."
+        />
+
+        <View style={styles.subTabNav}>
+          {TABS.map((item) => {
+            const active = activeSubTab === item;
+            return (
+              <TouchableOpacity
+                key={item}
+                onPress={() => goToTab(item)}
+                activeOpacity={0.7}
+                style={styles.subTabBtn}
+              >
+                <Text style={[styles.subTabText, active && styles.subTabTextActive]}>{item}</Text>
+                <View style={[styles.subTabLine, active && styles.subTabLineActive]} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      <ScrollView
         ref={pagerRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: true }
-        )}
         onMomentumScrollEnd={handlePagerMomentumEnd}
         scrollEventThrottle={16}
         style={styles.pager}
       >
         {TABS.map((tab) => (
-          <React.Fragment key={tab}>{renderPage(tab)}</React.Fragment>
+          <React.Fragment key={tab}>{renderList(tab)}</React.Fragment>
         ))}
-      </Animated.ScrollView>
+      </ScrollView>
 
-      {/* Floating blur header (title + sub-tabs) — pages scroll behind it */}
-      <BlurHeader height={headerHeight} contentStyle={{ paddingTop: headerTop, paddingHorizontal: SPACING.containerPadding }}>
-        <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>
-          My Sessions & <Text style={{ color: colors.primary }}>QR Passes</Text>
-        </Text>
-
-        {/* Sub-Navigation Tabs — a sliding underline tracks the pager 1:1 while dragging */}
-        <View style={[styles.subTabNav, { marginTop: 8 }]}>
-          {TABS.map((tab) => (
-            <TouchableOpacity key={tab} style={styles.subTabBtn} onPress={() => goToTab(tab)} activeOpacity={0.7}>
-              <Text
-                style={[
-                  styles.subTabBtnText,
-                  { color: activeSubTab === tab ? colors.primary : colors.textMuted },
-                  activeSubTab === tab && styles.subTabBtnTextActive,
-                ]}
-              >
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <Animated.View
-            style={[
-              styles.subTabIndicator,
-              {
-                width: pillWidth,
-                backgroundColor: colors.primary,
-                transform: [{ translateX: pillTranslate }],
-              },
-            ]}
-          />
-        </View>
-      </BlurHeader>
-
-      {/* Dynamic QR Modal */}
       <QRCodeModal
         key={selectedBookingForQR ? selectedBookingForQR.id : 'qr-modal-closed'}
         visible={!!selectedBookingForQR}
@@ -397,42 +350,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  topBar: {
+  header: {
     paddingHorizontal: SPACING.containerPadding,
-    paddingBottom: 12,
-    backgroundColor: 'rgba(10,10,14,0.88)',
-  },
-  topBarTitle: {
-    fontSize: 21,
-    fontFamily: FONTS.bold,
-    letterSpacing: -0.4,
-    lineHeight: 26,
-    color: COLORS.onSurface,
-  },
-  subTabNav: {
-    flexDirection: 'row',
-    position: 'relative',
-  },
-  subTabIndicator: {
-    position: 'absolute',
-    left: 0,
-    bottom: -1,
-    height: 3,
-    borderRadius: RADIUS.full,
-  },
-  subTabBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  subTabBtnText: {
-    fontSize: 11,
-    fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
-    letterSpacing: 0.5,
-  },
-  subTabBtnTextActive: {
-    fontFamily: FONTS.extraBold,
   },
   pager: {
     flex: 1,
@@ -441,166 +360,220 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: SPACING.containerPadding,
-    paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.containerPadding,
+  },
+  subTabNav: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lineSoft,
+  },
+  subTabBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  subTabText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 11,
+    letterSpacing: 1.1,
+  },
+  subTabTextActive: {
+    color: COLORS.paper,
+  },
+  subTabLine: {
+    position: 'absolute',
+    bottom: -1,
+    width: 26,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'transparent',
+  },
+  subTabLineActive: {
+    backgroundColor: COLORS.primary,
   },
   bookingCard: {
-    backgroundColor: '#181818',
-    borderRadius: 16,
-    padding: SPACING.md,
-    marginBottom: SPACING.cardGap,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
+    flexDirection: 'row',
     overflow: 'hidden',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
   },
-  bookingCardCancelled: {
-    opacity: 0.72,
+  bookingCardExpired: {
+    borderColor: COLORS.lineSoft,
+    backgroundColor: '#0E0F11',
   },
-  ticketTopRow: {
+  dateRail: {
+    width: 82,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 16,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.line,
+    backgroundColor: '#17120E',
+  },
+  dateRailExpired: {
+    borderRightColor: COLORS.lineSoft,
+    backgroundColor: '#111214',
+  },
+  dateMonth: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 1.1,
+  },
+  dateDay: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 38,
+    lineHeight: 35,
+    letterSpacing: 0.5,
+  },
+  dateWeekday: {
+    color: COLORS.muted,
+    fontFamily: FONTS.bold,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.8,
+  },
+  bookingInfo: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    gap: 5,
+  },
+  bookingTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    gap: 8,
   },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: 5,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 7,
+    paddingVertical: 4,
     borderRadius: RADIUS.full,
-    borderWidth: StyleSheet.hairlineWidth,
   },
   statusDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: 3,
   },
   statusText: {
-    fontSize: 9,
     fontFamily: FONTS.extraBold,
-    letterSpacing: 1.2,
+    fontSize: 8.5,
+    lineHeight: 11,
+    letterSpacing: 0.5,
   },
   creditsPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(233,181,76,0.12)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(233,181,76,0.30)',
+    gap: 3,
   },
   creditsPillText: {
-    fontSize: 12,
+    color: COLORS.secondary,
     fontFamily: FONTS.extraBold,
-  },
-  perforation: {
-    position: 'relative',
-    justifyContent: 'center',
-    marginVertical: 12,
-    marginHorizontal: -SPACING.md,
-    paddingHorizontal: SPACING.md,
-  },
-  dashedLine: {
-    borderTopWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(255,255,255,0.16)',
-  },
-  notch: {
-    position: 'absolute',
-    top: -9,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-  },
-  notchLeft: {
-    left: -SPACING.md - 9,
-  },
-  notchRight: {
-    right: -SPACING.md - 9,
-  },
-  slotStrip: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  slotCell: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#222226',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerDetails: {
-    flex: 1,
-  },
-  facilityName: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.onSurface,
-  },
-  sportCourt: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    lineHeight: 17,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  slotDetailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.glassHigh,
-    borderRadius: RADIUS.lg,
-    padding: 10,
-    marginTop: SPACING.sm,
-  },
-  slotCol: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  slotDetailText: {
     fontSize: 11,
+  },
+  bookingTitle: {
+    color: COLORS.paper,
     fontFamily: FONTS.bold,
-    color: COLORS.onSurface,
-    marginLeft: 4,
+    fontSize: 16,
+    lineHeight: 21,
+    letterSpacing: -0.1,
+  },
+  bookingMeta: {
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timeText: {
+    color: COLORS.paperDim,
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+  },
+  dotSeparator: {
+    color: COLORS.meta,
+    fontSize: 11,
+  },
+  durationText: {
+    color: COLORS.meta,
+    fontFamily: FONTS.bold,
+    fontSize: 9,
+    letterSpacing: 0.5,
   },
   cardActions: {
-    marginTop: SPACING.sm,
-  },
-  cardActionsStack: {
-    gap: 10,
-  },
-  emptyCard: {
-    backgroundColor: COLORS.glass,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.onSurface,
+    gap: 8,
     marginTop: 10,
   },
-  emptySub: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    lineHeight: 17,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginTop: 4,
+  qrPrimaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+  },
+  qrPrimaryText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10.5,
+    lineHeight: 13,
+    letterSpacing: 0.7,
+  },
+  cancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 12,
+  },
+  cancelText: {
+    color: COLORS.meta,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9.5,
+    lineHeight: 12,
+    letterSpacing: 0.7,
+  },
+  footerAction: {
+    marginTop: 10,
+  },
+  viewPastRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 12,
+  },
+  viewPastText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 1,
   },
 });

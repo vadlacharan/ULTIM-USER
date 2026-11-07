@@ -122,7 +122,14 @@ export interface Booking {
 export interface CreditTransaction {
   id: string;
   type: 'EARNED_OFFLINE' | 'SPENT_BOOKING';
+  /** Legacy credit delta (kept for compat). Prefer `amountINR` for display. */
   credits: number;
+  /** Real money value in INR (transactionAmount from the backend). */
+  amountINR: number;
+  /** e.g. cash | card | upi | bankTransfer */
+  paymentMethod?: string;
+  /** Linked pass id, when the payment settles a specific membership. */
+  membershipId?: string;
   description: string;
   date: string;
   facilityName: string;

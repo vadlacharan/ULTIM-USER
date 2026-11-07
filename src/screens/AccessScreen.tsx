@@ -6,18 +6,19 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
-import { BlurTitleHeader, useBlurHeaderLayout } from '../components/Blur';
 import { useTabBarClearance } from '../navigation/BlurTabBar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MembershipCard } from '../components/MembershipCard';
 import { NoticeBanner } from '../components/NoticeBanner';
-import { CreditIcon } from '../components/CreditIcon';
-import { GradientButton, OutlineButton } from '../components/buttons';
+import { GradientButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
+import { ArenaEmptyState, PageHead, SectionHead } from '../components/ArenaUI';
 
 interface AccessScreenProps {
   navigation: any;
@@ -34,9 +35,10 @@ export const AccessScreen: React.FC<AccessScreenProps> = ({ navigation }) => {
     colors,
   } = useApp();
 
+  const insets = useSafeAreaInsets();
   const activePasses = userMemberships.filter((m) => m.status === 'ACTIVE');
+  const expiredPasses = userMemberships.filter((m) => m.status !== 'ACTIVE');
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const { height: headerHeight } = useBlurHeaderLayout();
   const tabBarClearance = useTabBarClearance();
 
   const onRefresh = async () => {
@@ -51,13 +53,16 @@ export const AccessScreen: React.FC<AccessScreenProps> = ({ navigation }) => {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + 24, paddingBottom: tabBarClearance + 16 },
+          {
+            paddingTop: Math.max(insets.top, 12) + 26,
+            paddingBottom: tabBarClearance + 12,
+          },
         ]}
         showsVerticalScrollIndicator={false}
         removeClippedSubviews
         refreshControl={
           <RefreshControl
-            progressViewOffset={headerHeight}
+            progressViewOffset={insets.top + 20}
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={COLORS.primary}
@@ -66,98 +71,140 @@ export const AccessScreen: React.FC<AccessScreenProps> = ({ navigation }) => {
         }
       >
         {!isAuthenticated ? (
-          /* Sign In Required State */
-          <View style={styles.unauthCard}>
-            <Ionicons name="lock-closed-outline" size={44} color={COLORS.primary} />
-            <Text style={styles.unauthTitle}>Sign In Required</Text>
-            <Text style={styles.unauthSub}>
-              Please sign in to view your activated center memberships and total credit balance.
-            </Text>
-            <GradientButton
-              label="SIGN IN / CREATE ACCOUNT"
-              onPress={() => navigation.navigate('SignIn')}
-              style={styles.signInBtn}
+          <Animated.View entering={FadeInDown.duration(320)}>
+            <PageHead
+              eyebrow="Membership & credits"
+              title="Your"
+              accent=" access"
+              sub="One balance for courts, turfs and studios across the ULTIM network."
             />
-          </View>
+            <View style={styles.signInPanel}>
+              <View style={styles.signInIcon}>
+                <Ionicons name="lock-closed-outline" size={26} color={COLORS.primary} />
+              </View>
+              <Text style={styles.signInTitle}>Sign in required</Text>
+              <Text style={styles.signInSub}>
+                Sign in to view your activated center memberships and total credit balance.
+              </Text>
+              <GradientButton
+                label="Sign in / create account"
+                onPress={() => navigation.navigate('SignIn')}
+                fullWidth
+                style={styles.signInBtn}
+              />
+            </View>
+          </Animated.View>
         ) : (
           <>
-            {/* Credit Ledger Summary Header */}
+            <Animated.View entering={FadeInDown.duration(300)}>
+              <PageHead
+                eyebrow="Membership & credits"
+                title="Your"
+                accent=" access"
+                sub="One balance for courts, turfs and studios across the ULTIM network."
+              />
+            </Animated.View>
 
-            {/* Offline Activation Notice Banner */}
+            <Animated.View entering={FadeInDown.delay(60).duration(340).damping(24)}>
+              <Pressable
+                onPress={() => navigation.navigate('Transactions', { from: 'access' })}
+                style={({ pressed }) => [styles.walletCard, pressed && { opacity: 0.86 }]}
+              >
+                <View style={styles.walletIcon}>
+                  <Ionicons name="wallet" size={22} color={COLORS.onPrimary} />
+                </View>
+                <View style={styles.walletCopy}>
+                  <Text style={styles.walletLabel}>AVAILABLE CREDITS</Text>
+                  <Text style={styles.walletAmount}>{totalActiveCredits}</Text>
+                  <Text style={styles.walletNote}>Applied automatically at checkout</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.meta} />
+              </Pressable>
+            </Animated.View>
 
-            {/* Active Passes Section */}
+            <Text style={styles.accessNote}>
+              Every pass works across participating ULTIM venues. Credits are deducted when you book.
+            </Text>
 
+            <NoticeBanner message="Visit a center reception desk to activate a membership pass and load credits onto your account." />
 
             {membershipError ? (
               <View style={styles.errorCard}>
-                <Ionicons name="alert-circle-outline" size={32} color={COLORS.error} />
-                <Text style={styles.errorTitle}>Error Loading Passes</Text>
+                <Ionicons name="alert-circle-outline" size={28} color={COLORS.error} />
+                <Text style={styles.errorTitle}>Error loading passes</Text>
                 <Text style={styles.errorSub}>{membershipError}</Text>
-                <GradientButton label="RETRY" onPress={refreshData} compact style={styles.retryBtn} />
+                <GradientButton label="Retry" onPress={refreshData} compact style={styles.retryBtn} />
               </View>
             ) : isLoading && !refreshing ? (
-              <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 30 }} />
+              <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 40 }} />
             ) : userMemberships.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Ionicons name="wallet-outline" size={44} color={COLORS.textMuted} />
-                <Text style={styles.emptyTitle}>No Active Memberships Found</Text>
-                <Text style={styles.emptySub}>
-                  Visit any partner center reception desk to register for a plan and activate your credited balance.
-                </Text>
-                <OutlineButton
-                  label="EXPLORE NEARBY CENTERS"
-                  onPress={() => navigation.navigate('HomeTab')}
-                  color={COLORS.primary}
-                  style={styles.exploreBtn}
-                />
-              </View>
+              <ArenaEmptyState
+                icon="wallet-outline"
+                title="No active memberships found"
+                copy="Visit any partner center reception desk to register for a plan and activate your credited balance."
+                action={
+                  <Pressable onPress={() => navigation.navigate('HomeTab')} style={{ marginTop: 4 }}>
+                    <Text style={styles.exploreLink}>EXPLORE NEARBY CENTERS</Text>
+                  </Pressable>
+                }
+              />
             ) : (
               <>
-                {/* ── LEDGER SUMMARY (Spotify "Your Library" header) ── */}
-                <Animated.View entering={FadeInDown.delay(40).duration(340).damping(24)}>
-                  <View style={[styles.ledgerSummaryCard, { backgroundColor: colors.emberPanel, borderColor: colors.emberBorder }]}>
-                    <View style={styles.summaryTopRow}>
-                      <View>
-                        <Text style={[styles.summaryLabel, { color: colors.primary }]}>TOTAL ACTIVE CREDITS</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                          <Text style={[styles.summaryVal, { color: colors.onSurface }]}>{totalActiveCredits}</Text>
-                          <CreditIcon size={30} />
-                        </View>
-                      </View>
-                      <View style={[styles.passesBadge, { backgroundColor: colors.glassHigh, borderColor: colors.glassBorder }]}>
-                        <Text style={[styles.passesBadgeVal, { color: colors.onSurface }]}>{activePasses.length}</Text>
-                        <Text style={[styles.passesBadgeText, { color: colors.textMuted }]}>ACTIVE {activePasses.length === 1 ? 'PASS' : 'PASSES'}</Text>
-                      </View>
-                    </View>
-                  </View>
-                </Animated.View>
-
-                <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-                    YOUR PASSES ({userMemberships.length})
-                  </Text>
+                <View style={styles.section}>
+                  <SectionHead
+                    eyebrow="Ready to play"
+                    title="Active memberships"
+                    meta={`${activePasses.length} active`}
+                  />
+                  {activePasses.length > 0 ? (
+                    activePasses.map((membership, idx) => (
+                      <MembershipCard
+                        key={membership.id}
+                        membership={membership}
+                        index={idx}
+                        onBookSession={() =>
+                          navigation.navigate('BookingFlow', {
+                            facilityId: membership.facilityId,
+                            membershipId: membership.id,
+                          })
+                        }
+                      />
+                    ))
+                  ) : (
+                    <ArenaEmptyState
+                      title="No active memberships yet"
+                      copy="Choose a plan from an arena to get started."
+                    />
+                  )}
                 </View>
 
-                {userMemberships.map((membership, idx) => (
-                  <MembershipCard
-                    key={membership.id}
-                    membership={membership}
-                    index={idx}
-                    onBookSession={() =>
-                      navigation.navigate('BookingFlow', { facilityId: membership.facilityId })
-                    }
+                <View style={styles.section}>
+                  <SectionHead
+                    eyebrow="History"
+                    title="Expired memberships"
+                    meta={`${expiredPasses.length} expired`}
                   />
-                ))}
+                  {expiredPasses.length > 0 ? (
+                    expiredPasses.map((membership, idx) => (
+                      <MembershipCard
+                        key={membership.id}
+                        membership={membership}
+                        index={idx}
+                        onBookSession={() => {}}
+                      />
+                    ))
+                  ) : (
+                    <ArenaEmptyState
+                      title="No expired memberships"
+                      copy="Your membership history will appear here."
+                    />
+                  )}
+                </View>
               </>
             )}
           </>
         )}
       </ScrollView>
-
-      {/* Floating blur header — screens scroll behind it */}
-      <BlurTitleHeader
-        title={<>Active Access & <Text style={{ color: COLORS.primary }}>Credits</Text></>}
-      />
     </View>
   );
 };
@@ -167,161 +214,126 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  topBar: {
-    paddingHorizontal: SPACING.containerPadding,
-    paddingBottom: 12,
-    backgroundColor: 'rgba(10,10,14,0.88)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  topBarTitle: {
-    fontSize: 22,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.3,
-    lineHeight: 28,
-    color: COLORS.onSurface,
-  },
   scrollContent: {
-    padding: SPACING.containerPadding,
-    paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.containerPadding,
   },
-  unauthCard: {
-    backgroundColor: COLORS.glass,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginTop: SPACING.lg,
+  signInPanel: {
+    alignItems: 'flex-start',
+    padding: 20,
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.panel,
+    backgroundColor: COLORS.surface,
   },
-  unauthTitle: {
-    fontSize: 18,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.2,
-    lineHeight: 22,
-    color: COLORS.onSurface,
-    marginTop: 10,
+  signInIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primaryMuted,
   },
-  unauthSub: {
-    fontSize: 13,
-    fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
-    textAlign: 'center',
+  signInTitle: {
+    marginTop: 16,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 28,
+    lineHeight: 27,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  signInSub: {
     marginTop: 6,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 13,
     lineHeight: 20,
   },
   signInBtn: {
-    marginTop: SPACING.md,
+    marginTop: 20,
   },
-  ledgerSummaryCard: {
-    backgroundColor: COLORS.glass,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-  },
-  summaryTopRow: {
+  walletCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 10,
-    fontFamily: FONTS.bold,
-    color: COLORS.secondary,
-    letterSpacing: 0.5,
-  },
-  summaryVal: {
-    fontSize: 36,
-    fontFamily: FONTS.black,
-    color: COLORS.primary,
-    marginTop: 2,
-  },
-  passesBadge: {
-    backgroundColor: COLORS.glassHigh,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: RADIUS.lg,
-    alignItems: 'center',
+    gap: 12,
+    minHeight: 88,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.panel,
+    backgroundColor: COLORS.surface,
   },
-  passesBadgeVal: {
-    fontSize: 20,
+  walletIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+  },
+  walletCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  walletLabel: {
+    color: COLORS.muted,
     fontFamily: FONTS.extraBold,
-    color: COLORS.onSurface,
-  },
-  passesBadgeText: {
     fontSize: 9,
-    fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
-    letterSpacing: 0.5,
+    lineHeight: 12,
+    letterSpacing: 1.1,
   },
-  summaryNote: {
-    fontSize: 11,
+  walletAmount: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 31,
+    lineHeight: 31,
+    letterSpacing: 0.3,
+  },
+  walletNote: {
+    color: COLORS.muted,
     fontFamily: FONTS.regular,
-    color: COLORS.textMuted,
-    marginTop: SPACING.sm,
-    lineHeight: 16,
+    fontSize: 10,
+    lineHeight: 14,
   },
-  sectionHeader: {
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.xs,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontFamily: FONTS.bold,
-    color: COLORS.onSurface,
-    letterSpacing: 0.5,
-  },
-  emptyCard: {
-    backgroundColor: COLORS.glass,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginVertical: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-  },
-  emptyTitle: {
-    color: COLORS.onSurface,
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-    marginTop: 10,
-  },
-  emptySub: {
-    color: COLORS.textMuted,
+  accessNote: {
+    marginTop: 12,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
     fontSize: 12,
-    fontFamily: FONTS.regular,
-    textAlign: 'center',
-    marginTop: 6,
     lineHeight: 18,
   },
-  exploreBtn: {
-    marginTop: SPACING.md,
+  section: {
+    marginTop: 30,
+  },
+  exploreLink: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 0.9,
   },
   errorCard: {
-    backgroundColor: COLORS.glass,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
     alignItems: 'center',
-    marginVertical: SPACING.md,
+    padding: 20,
+    marginTop: 24,
     borderWidth: 1,
     borderColor: COLORS.error,
+    borderRadius: RADIUS.default,
   },
   errorTitle: {
+    marginTop: 8,
     color: COLORS.error,
-    fontSize: 15,
-    fontFamily: FONTS.extraBold,
-    marginTop: 6,
+    fontFamily: FONTS.bold,
+    fontSize: 14,
   },
   errorSub: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    textAlign: 'center',
     marginTop: 4,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
   },
   retryBtn: {
     marginTop: 12,

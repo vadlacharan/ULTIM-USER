@@ -7,11 +7,12 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FONTS, RADIUS, SPACING } from '../theme/theme';
-import { BlurHeader, useBlurBackHeaderLayout } from '../components/Blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
-import { IconButton } from '../components/buttons';
+import { ArenaEmptyState, DetailTopBar, PageHead } from '../components/ArenaUI';
 
 interface NotificationScreenProps {
   navigation: any;
@@ -19,165 +20,142 @@ interface NotificationScreenProps {
 
 export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigation }) => {
   const { notifications, markNotificationAsRead, colors } = useApp();
-  const { top: headerTop, height: headerHeight } = useBlurBackHeaderLayout();
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppBackground />
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + 24 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top, 12) + 4,
+            paddingBottom: Math.max(insets.bottom, 16) + 24,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {notifications.length === 0 && (
-          <View style={[styles.emptyCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-            <Ionicons name="notifications-off-outline" size={36} color={colors.textMuted} />
-            <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>You're all caught up</Text>
-            <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-              Booking updates and credit activity will appear here.
-            </Text>
-          </View>
-        )}
-        {notifications.map((n) => (
-          <TouchableOpacity
-            key={n.id}
-            style={[
-              styles.notifCard,
-              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-              !n.isRead && [styles.unreadCard, { borderLeftColor: colors.primary }],
-            ]}
-            onPress={() => markNotificationAsRead(n.id)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.row}>
-              <View style={[styles.iconBox, { backgroundColor: colors.glassHigh }]}>
-                <Ionicons
-                  name={
-                    n.type === 'BOOKING'
-                      ? 'calendar-sharp'
-                      : n.type === 'CREDIT'
-                      ? 'wallet-sharp'
-                      : 'information-circle-sharp'
-                  }
-                  size={20}
-                  color={n.type === 'BOOKING' ? colors.primary : colors.secondary}
-                />
-              </View>
-              <View style={styles.content}>
-                <View style={styles.titleRow}>
-                  <Text style={[styles.notifTitle, { color: colors.onSurface }]}>{n.title}</Text>
-                  <Text style={[styles.notifTime, { color: colors.textMuted }]}>{n.timestamp}</Text>
-                </View>
-                <Text style={[styles.notifMsg, { color: colors.textMuted }]}>{n.message}</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Floating blur header — list scrolls behind it */}
-      <BlurHeader
-        height={headerHeight}
-        contentStyle={{
-          paddingTop: headerTop,
-          paddingHorizontal: SPACING.containerPadding,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <IconButton
-          icon="arrow-back"
-          size={40}
-          iconSize={22}
-          iconColor={colors.onSurface}
-          backgroundColor={colors.glassHigh}
-          onPress={() => navigation.goBack()}
+        <DetailTopBar label="Notification center" onBack={() => navigation.goBack()} />
+        <PageHead
+          eyebrow="Updates"
+          title="Your"
+          accent=" updates"
+          sub="Booking confirmations, credit activity and arena news."
         />
-        <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>Notification Center</Text>
-        <View style={{ width: 40 }} />
-      </BlurHeader>
+
+        {notifications.length === 0 && (
+          <ArenaEmptyState
+            icon="notifications-off-outline"
+            title="You're all caught up"
+            copy="Booking updates and credit activity will appear here."
+          />
+        )}
+
+        {notifications.map((n, index) => {
+          const icon =
+            n.type === 'BOOKING'
+              ? 'calendar-outline'
+              : n.type === 'CREDIT'
+                ? 'wallet-outline'
+                : 'information-circle-outline';
+          return (
+            <Animated.View
+              key={n.id}
+              entering={FadeInDown.delay(Math.min(index, 6) * 45).duration(320).damping(24)}
+            >
+              <TouchableOpacity
+                style={[styles.notifCard, !n.isRead && styles.unreadCard]}
+                onPress={() => markNotificationAsRead(n.id)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.iconBox}>
+                  <Ionicons name={icon} size={18} color={COLORS.primary} />
+                </View>
+                <View style={styles.content}>
+                  <View style={styles.titleRow}>
+                    <Text style={styles.notifTitle} numberOfLines={1}>
+                      {n.title}
+                    </Text>
+                    <Text style={styles.notifTime}>{n.timestamp}</Text>
+                  </View>
+                  <Text style={styles.notifMsg}>{n.message}</Text>
+                </View>
+                {!n.isRead && <View style={styles.unreadDot} />}
+              </TouchableOpacity>
+            </Animated.View>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  emptyCard: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginTop: SPACING.lg,
-    borderWidth: 1,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    marginTop: 10,
-  },
-  emptySub: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18,
-  },
   container: {
     flex: 1,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.containerPadding,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  topBarTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
+    backgroundColor: COLORS.background,
   },
   scrollContent: {
-    padding: SPACING.containerPadding,
-    paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.containerPadding,
   },
   notifCard: {
-    borderRadius: RADIUS.lg,
-    padding: SPACING.sm,
-    marginBottom: SPACING.xs,
-    borderWidth: 1,
-  },
-  unreadCard: {
-    borderLeftWidth: 4,
-  },
-  row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    gap: 11,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
+  },
+  unreadCard: {
+    borderColor: COLORS.line,
+    backgroundColor: '#17120E',
   },
   iconBox: {
     width: 36,
     height: 36,
-    borderRadius: RADIUS.full,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    backgroundColor: COLORS.primaryMuted,
   },
   content: {
     flex: 1,
+    minWidth: 0,
   },
   titleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
   },
   notifTitle: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
+    flex: 1,
+    color: COLORS.paper,
+    fontFamily: FONTS.semiBold,
+    fontSize: 13.5,
+    lineHeight: 18,
   },
   notifTime: {
-    fontSize: 10,
+    color: COLORS.meta,
+    fontFamily: FONTS.medium,
+    fontSize: 9,
+    letterSpacing: 0.3,
   },
   notifMsg: {
-    fontSize: 12,
     marginTop: 4,
-    lineHeight: 18,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 11.5,
+    lineHeight: 17,
+  },
+  unreadDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 5,
+    backgroundColor: COLORS.primary,
   },
 });

@@ -11,11 +11,11 @@ import {
   Dimensions,
   FlatList,
   ListRenderItemInfo,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { Header, useHeaderLayout } from '../components/Header';
 import { useTabBarClearance } from '../navigation/BlurTabBar';
@@ -28,24 +28,40 @@ import { NoticeBanner } from '../components/NoticeBanner';
 import { GradientButton } from '../components/buttons';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
+import { ArenaEmptyState, SectionHead } from '../components/ArenaUI';
 import { Booking, CategoryType, Facility } from '../types';
 
-// Near You rail cards: big, but leave a deliberate "peek" of the next card
-// at the trailing edge so the scrollability is discoverable.
-const RAIL_CARD_WIDTH = Math.round(Dimensions.get('window').width - 104);
+const RAIL_CARD_WIDTH = Math.min(252, Math.round(Dimensions.get('window').width * 0.646));
+
+const ACTIVITY_FALLBACKS: Record<string, any> = {
+  Fitness: require('../../assets/arena/category-fitness.jpg'),
+  Sports: require('../../assets/arena/category-sports.jpg'),
+  Sport: require('../../assets/arena/category-sports.jpg'),
+  Health: require('../../assets/arena/category-health.jpg'),
+};
+
+const ACTIVITY_IMAGES: Array<{ match: RegExp; image: any }> = [
+  { match: /badminton/i, image: require('../../assets/arena/activity-badminton.jpg') },
+  { match: /cricket/i, image: require('../../assets/arena/activity-cricket.jpg') },
+  { match: /pickleball/i, image: require('../../assets/arena/activity-pickleball.jpg') },
+  { match: /football|soccer|turf/i, image: require('../../assets/arena/facility-football.jpg') },
+  { match: /yoga|recovery|stretch/i, image: require('../../assets/arena/facility-yoga.jpg') },
+  { match: /gym|fitness|strength/i, image: require('../../assets/arena/category-fitness.jpg') },
+];
 
 interface HomeScreenProps {
   navigation: any;
 }
 
-type CategoryCard = { label: CategoryType; title: string; image: any };
+type CategoryCard = { label: CategoryType; title: string; note: string; image: any };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const {
     facilities,
     bookings,
-    totalActiveCredits,
+    currentLocation,
     isAuthenticated,
+    user,
     isLoading,
     isOffline,
     facilityError,
@@ -55,6 +71,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchFocused, setSearchFocused] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
   const { height: headerHeight } = useHeaderLayout();
@@ -83,7 +100,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         return (
           f.name.toLowerCase().includes(q) ||
           (f.address || '').toLowerCase().includes(q) ||
-          (f.category || '').toLowerCase().includes(q)
+          (f.category || '').toLowerCase().includes(q) ||
+          (f.sportTags || []).join(' ').toLowerCase().includes(q)
         );
       }
       return true;
@@ -98,6 +116,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     () => bookings.filter((b) => b.status === 'UPCOMING'),
     [bookings]
   );
+
+  const featuredActivities = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return facilities
+      .filter((f) => {
+        if (!q) return true;
+        const haystack = [f.name, f.category, ...(f.sportTags || [])].join(' ').toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, 4)
+      .map((f) => ({
+        facility: f,
+        title: (f.sportTags && f.sportTags[0]) || f.category || 'Arena session',
+        kicker: `${f.category || 'Arena'} / ${(f.sportTags && f.sportTags[0]) || 'Play'}`,
+      }));
+  }, [facilities, searchQuery]);
 
   // Open the check-in/check-out QR pass straight from the floating session bar.
   const openBookingQr = useCallback(
@@ -124,9 +158,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const categoryCards: CategoryCard[] = useMemo(
     () => [
-      { label: 'Fitness', title: 'FITNESS', image: require('../../assets/fitness.png') },
-      { label: 'Sports', title: 'SPORTS', image: require('../../assets/sports.png') },
-      { label: 'Health', title: 'HEALTH', image: require('../../assets/health2.png') },
+      { label: 'Fitness', title: 'FITNESS', note: 'TRAIN', image: require('../../assets/arena/category-fitness.jpg') },
+      { label: 'Sports', title: 'SPORTS', note: 'PLAY', image: require('../../assets/arena/category-sports.jpg') },
+      { label: 'Health', title: 'HEALTH', note: 'RECOVER', image: require('../../assets/arena/category-health.jpg') },
     ],
     []
   );
@@ -171,48 +205,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     [openFacility]
   );
 
-  const renderCategoryItem = useCallback(
-    ({ item: cat, index }: ListRenderItemInfo<CategoryCard>) => {
-      const isSelected = selectedCategory === cat.label;
-      const count = categoryCounts[cat.label] ?? 0;
-      return (
-        <Animated.View entering={FadeInDown.delay(90 + index * 60).duration(340).damping(24)}>
-          <TouchableOpacity
-            style={[styles.catCard, isSelected && styles.selectedCatCard]}
-            onPress={() => openCategory(cat)}
-            activeOpacity={0.88}
-          >
-            <Image
-              source={cat.image}
-              style={styles.catImage}
-              contentFit="cover"
-              transition={180}
-              cachePolicy="memory-disk"
-            />
-            <LinearGradient
-              colors={['rgba(8,8,10,0)', 'rgba(8,8,10,0.55)', 'rgba(8,8,10,0.92)']}
-              locations={[0.3, 0.65, 1]}
-              style={styles.catScrim}
-            />
-            <View style={styles.catTopRow}>
-              <View style={styles.catCountPill}>
-                <Text style={styles.catCountText}>{count}</Text>
-              </View>
-            </View>
-            <View style={styles.catContent}>
-              <Text style={styles.catTitle}>{cat.title}</Text>
-              <Text style={styles.catSub}>
-                {count === 1 ? '1 CENTER' : `${count} CENTERS`}
-              </Text>
-            </View>
-            {isSelected && <View style={styles.catSelectedRim} pointerEvents="none" />}
-          </TouchableOpacity>
-        </Animated.View>
-      );
-    },
-    [selectedCategory, openCategory, categoryCounts]
-  );
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppBackground />
@@ -220,8 +212,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: headerHeight + 18,
-            paddingBottom: tabBarClearance + (todayBookings.length > 0 ? 88 : 16),
+            paddingTop: headerHeight + 4,
+            paddingBottom: tabBarClearance + (todayBookings.length > 0 ? 82 : 12),
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -236,173 +228,283 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           />
         }
       >
-        {/* ── SEARCH PILL (Spotify 500px radius) ── */}
-        <Animated.View entering={FadeIn.duration(300)}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={17} color={colors.textMuted} />
+        {/* ── HERO ─────────────────────────────────────────────── */}
+        <Animated.View entering={FadeIn.duration(320)}>
+          <View style={styles.hero}>
+            <View style={styles.locationLine}>
+              <Ionicons name="location-outline" size={14} color={COLORS.primary} />
+              <Text style={styles.locationText} numberOfLines={1}>
+                {currentLocation || 'Koramangala, Bengaluru'}
+              </Text>
+            </View>
+            {isAuthenticated && user?.name ? (
+              <>
+                <Text style={styles.heroTitle}>
+                  Welcome,{'\n'}
+                  <Text style={styles.heroAccent}>
+                    {user.name.trim().split(/\s+/)[0]}.
+                  </Text>
+                </Text>
+                <Text style={styles.heroSub}>Ready when you are — pick your next game.</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.heroTitle}>
+                  Find your{'\n'}
+                  <Text style={styles.heroAccent}>next game.</Text>
+                </Text>
+                <Text style={styles.heroSub}>Book turfs, courts and studios around you.</Text>
+              </>
+            )}
+          </View>
+        </Animated.View>
+
+        {/* ── SEARCH ───────────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(50).duration(320).damping(24)}>
+          <View style={[styles.searchShell, searchFocused && styles.searchShellFocused]}>
+            <Ionicons name="search" size={19} color={COLORS.muted} />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="What do you want to train?"
-              placeholderTextColor={colors.textMuted}
-              style={[styles.searchInput, { color: colors.onSurface }]}
+              placeholder="Search turf, court or class"
+              placeholderTextColor={COLORS.meta}
+              style={styles.searchInput}
               returnKeyType="search"
               autoCorrect={false}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={12}>
-                <Ionicons name="close-circle" size={17} color={colors.textMuted} />
+              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={12} style={styles.clearBtn}>
+                <Ionicons name="close" size={17} color={COLORS.muted} />
               </TouchableOpacity>
             )}
+            <View style={styles.searchSubmit}>
+              <Ionicons name="arrow-forward" size={19} color={COLORS.onPrimary} />
+            </View>
           </View>
+          {searchQuery.trim().length > 0 && (
+            <View style={styles.searchFeedback}>
+              <Text style={styles.searchFeedbackText}>
+                <Text style={styles.searchFeedbackStrong}>{nearestFacilities.length}</Text>{' '}
+                {nearestFacilities.length === 1 ? 'arena' : 'arenas'} match “{searchQuery.trim()}”
+              </Text>
+              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+                <Text style={styles.feedbackClear}>CLEAR</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </Animated.View>
 
         {isOffline && (
           <NoticeBanner message="NO INTERNET: Showing saved cached data. Pull down to retry connection." />
         )}
 
-        {/* ── CREDIT BANNER ── */}
-        {isAuthenticated ? (
-          <Animated.View entering={FadeInDown.delay(60).duration(340).damping(24)}>
-            <TouchableOpacity
-              style={styles.creditSummaryBanner}
-              onPress={() => navigation.navigate('AccessTab')}
-              activeOpacity={0.85}
+        {!isAuthenticated && (
+          <Animated.View entering={FadeInDown.delay(80).duration(320).damping(24)}>
+            <Pressable
+              onPress={() => navigation.navigate('SignIn')}
+              style={({ pressed }) => [styles.signInBanner, pressed && { opacity: 0.85 }]}
             >
-              <View style={styles.creditIconBox}>
-                <CreditIcon size={26} />
+              <View style={styles.signInIcon}>
+                <Ionicons name="person-outline" size={18} color={COLORS.primary} />
               </View>
-              <View style={styles.creditTextCol}>
-                <Text style={styles.creditTitle}>ACTIVE CREDITS</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                  <Text style={[styles.creditVal, { color: colors.onSurface }]}>
-                    {totalActiveCredits}
-                  </Text>
-                  <CreditIcon size={20} />
-                </View>
+              <View style={styles.signInCopy}>
+                <Text style={styles.signInTitle}>Sign in to ULTIM</Text>
+                <Text style={styles.signInSub}>Access member passes and book sessions.</Text>
               </View>
-              <GradientButton
-                label="BOOK NOW"
-                onPress={() => navigation.navigate('AccessTab')}
-                compact
-              />
-            </TouchableOpacity>
+              <Ionicons name="arrow-forward" size={16} color={COLORS.primary} />
+            </Pressable>
           </Animated.View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.authBanner, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-            onPress={() => navigation.navigate('SignIn')}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="person-circle" size={24} color={colors.secondary} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[styles.authBannerTitle, { color: colors.onSurface }]}>Sign In to ULTIM</Text>
-              <Text style={[styles.authBannerSub, { color: colors.textMuted }]}>
-                Access active membership passes & session bookings
-              </Text>
-            </View>
-            <GradientButton label="SIGN IN" onPress={() => navigation.navigate('SignIn')} compact />
-          </TouchableOpacity>
         )}
 
-        {/* ── CATEGORY CARDS ── */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>EXPLORE CATEGORIES</Text>
-          {selectedCategory !== 'All' && (
-            <TouchableOpacity onPress={() => setSelectedCategory('All')}>
-              <Text style={styles.resetCatText}>SHOW ALL ({facilities.length})</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <FlatList
-          data={categoryCards}
-          keyExtractor={(c) => c.label}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingRight: 4 }}
-          removeClippedSubviews
-          initialNumToRender={3}
-          windowSize={3}
-          renderItem={renderCategoryItem}
-        />
-
-        {/* ── NEAR YOU HEADER ── */}
-        <View style={[styles.sectionHeader, { marginTop: 20 }]}>
-          <Text style={styles.sectionTitle}>
-            {selectedCategory === 'All'
-              ? searchQuery
-                ? 'RESULTS'
-                : 'NEAR YOU'
-              : `${selectedCategory.toUpperCase()} CENTERS`}
-          </Text>
-          <Text style={styles.countText}>{nearestFacilities.length} closest</Text>
-        </View>
-
-        {facilityError ? (
-          <View style={styles.errorCard}>
-            <Ionicons name="alert-circle-outline" size={32} color={COLORS.error} />
-            <Text style={styles.errorTitle}>Facility Data Error</Text>
-            <Text style={styles.errorSub}>{facilityError}</Text>
-            <GradientButton
-              label="RETRY API FETCH"
-              icon="refresh"
-              onPress={refreshData}
-              style={styles.retryBtn}
-              compact
+        {/* ── CATEGORIES ───────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(100).duration(340).damping(24)}>
+          <View style={styles.section}>
+            <SectionHead
+              eyebrow="Train. Play. Recover."
+              title="Choose your arena"
+              meta={`${facilities.length} ${facilities.length === 1 ? 'center' : 'centers'}`}
             />
+            <View style={styles.categoryGrid}>
+              {categoryCards.map((cat) => (
+                <Pressable
+                  key={cat.label}
+                  onPress={() => openCategory(cat)}
+                  style={({ pressed }) => [styles.categoryCard, pressed && { opacity: 0.86 }]}
+                >
+                  <View style={styles.categoryMedia}>
+                    <Image
+                      source={cat.image}
+                      style={styles.categoryImage}
+                      contentFit="cover"
+                      transition={220}
+                      cachePolicy="memory-disk"
+                    />
+                  </View>
+                  <View style={styles.categoryCopy}>
+                    <Text style={styles.categoryName}>{cat.title}</Text>
+                    <Text style={styles.categoryNote}>
+                      {cat.note} · {categoryCounts[cat.label] ?? 0}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
           </View>
-        ) : isLoading && !refreshing ? (
-          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 40 }} />
-        ) : nearestFacilities.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-            <Ionicons name="business-outline" size={40} color={colors.textMuted} />
-            <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>No Facilities Available</Text>
-            <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-              {searchQuery
-                ? `Nothing matches "${searchQuery}" nearby. Try another search.`
-                : 'No sports or fitness centers found near your current location.'}
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={nearestFacilities}
-            keyExtractor={(item) => item.id}
-            renderItem={renderRailItem}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={RAIL_CARD_WIDTH + 14}
-            decelerationRate="fast"
-            snapToAlignment="start"
-            contentContainerStyle={styles.railContent}
-            style={styles.facilitiesRail}
-            removeClippedSubviews
-            initialNumToRender={3}
-            maxToRenderPerBatch={3}
-            windowSize={3}
-            getItemLayout={(_, index) => ({
-              length: RAIL_CARD_WIDTH + 14,
-              offset: (RAIL_CARD_WIDTH + 14) * index,
-              index,
-            })}
-          />
-        )}
+        </Animated.View>
 
-        {nearestFacilities.length > 0 && (
-          <TouchableOpacity
-            style={styles.viewAllRow}
-            onPress={() =>
-              navigation.navigate('CategoryFacilities', {
-                category: selectedCategory,
-                categoryTitle:
-                  selectedCategory === 'All' ? 'All Centers' : selectedCategory.toUpperCase(),
-              })
-            }
-            activeOpacity={0.7}
-          >
-            <Text style={styles.viewAllText}>VIEW ALL CENTERS</Text>
-            <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
-          </TouchableOpacity>
+        {/* ── NEARBY ARENAS ────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(150).duration(340).damping(24)}>
+          <View style={styles.section}>
+            <SectionHead
+              eyebrow="Around you"
+              title={selectedCategory === 'All' ? 'Nearby arenas' : `Nearby ${selectedCategory}`}
+              meta={`${nearestFacilities.length} ${nearestFacilities.length === 1 ? 'place' : 'places'}`}
+            />
+
+            {facilityError ? (
+              <View style={styles.errorCard}>
+                <Ionicons name="alert-circle-outline" size={26} color={COLORS.error} />
+                <Text style={styles.errorTitle}>Facility data error</Text>
+                <Text style={styles.errorSub}>{facilityError}</Text>
+                <GradientButton
+                  label="Retry API fetch"
+                  icon="refresh"
+                  onPress={refreshData}
+                  style={styles.retryBtn}
+                  compact
+                />
+              </View>
+            ) : isLoading && !refreshing ? (
+              <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 36 }} />
+            ) : nearestFacilities.length === 0 ? (
+              <ArenaEmptyState
+                icon="business-outline"
+                title="No arenas found"
+                copy={
+                  searchQuery
+                    ? `Nothing matches “${searchQuery}” nearby. Try another search.`
+                    : 'No sports or fitness centers found near your current location.'
+                }
+                action={
+                  (searchQuery || selectedCategory !== 'All') && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setSearchQuery('');
+                        setSelectedCategory('All');
+                      }}
+                      style={{ marginTop: 4 }}
+                    >
+                      <Text style={styles.resetLink}>RESET FILTERS</Text>
+                    </TouchableOpacity>
+                  )
+                }
+              />
+            ) : (
+              <FlatList
+                data={nearestFacilities}
+                keyExtractor={(item) => item.id}
+                renderItem={renderRailItem}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={RAIL_CARD_WIDTH + 12}
+                decelerationRate="fast"
+                snapToAlignment="start"
+                contentContainerStyle={styles.railContent}
+                style={styles.facilitiesRail}
+                removeClippedSubviews
+                initialNumToRender={3}
+                maxToRenderPerBatch={3}
+                windowSize={3}
+                getItemLayout={(_, index) => ({
+                  length: RAIL_CARD_WIDTH + 12,
+                  offset: (RAIL_CARD_WIDTH + 12) * index,
+                  index,
+                })}
+              />
+            )}
+
+            {nearestFacilities.length > 0 && (
+              <Pressable
+                onPress={() =>
+                  navigation.navigate('CategoryFacilities', {
+                    category: selectedCategory,
+                    categoryTitle:
+                      selectedCategory === 'All' ? 'All Centers' : selectedCategory.toUpperCase(),
+                  })
+                }
+                style={({ pressed }) => [styles.viewAllRow, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={styles.viewAllText}>VIEW ALL CENTERS</Text>
+                <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
+              </Pressable>
+            )}
+          </View>
+        </Animated.View>
+
+        {/* ── FEATURED ACTIVITIES ──────────────────────────────── */}
+        {featuredActivities.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(200).duration(340).damping(24)}>
+            <View style={styles.section}>
+              <SectionHead
+                eyebrow="Worth a slot"
+                title="Featured activities"
+                meta={`${featuredActivities.length} ${featuredActivities.length === 1 ? 'pick' : 'picks'}`}
+              />
+              <View style={styles.activitiesGrid}>
+                {featuredActivities.map(({ facility, title, kicker }) => {
+                  const uri =
+                    (facility.images && facility.images[0]) || facility.imageUrl || '';
+                  const activityArt =
+                    ACTIVITY_IMAGES.find((entry) => entry.match.test(title))?.image;
+                  return (
+                    <Pressable
+                      key={`${facility.id}-activity`}
+                      onPress={() => openFacility(facility.id)}
+                      style={({ pressed }) => [
+                        styles.activityCard,
+                        featuredActivities.length === 1 && { width: '100%' },
+                        pressed && { opacity: 0.88 },
+                      ]}
+                    >
+                      <View style={styles.activityMedia}>
+                        <Image
+                          source={
+                            activityArt ||
+                            (uri
+                              ? { uri }
+                              : ACTIVITY_FALLBACKS[facility.category] || ACTIVITY_FALLBACKS.Sports)
+                          }
+                          style={styles.activityImage}
+                          contentFit="cover"
+                          transition={220}
+                          cachePolicy="memory-disk"
+                        />
+                      </View>
+                      <View style={styles.activityBody}>
+                        <Text style={styles.activityKicker}>{kicker}</Text>
+                        <Text style={styles.activityName} numberOfLines={2}>
+                          {title}
+                        </Text>
+                        <Text style={styles.activityMeta} numberOfLines={1}>
+                          {facility.name}
+                        </Text>
+                        <View style={styles.activityFooter}>
+                          <Text style={styles.activityDistance}>
+                            {facility.distance && facility.distance !== 'Distance N/A'
+                              ? facility.distance
+                              : 'Nearby'}
+                          </Text>
+                          <Ionicons name="arrow-forward" size={13} color={COLORS.primary} />
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </Animated.View>
         )}
       </ScrollView>
 
@@ -423,8 +525,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         onClose={() => setQrBooking(null)}
       />
 
-      {/* Floating blur header — screens scroll behind it */}
-      <Header onNotificationPress={() => navigation.navigate('Notifications')} />
+      {/* Floating arena header — screens scroll behind it */}
+      <Header
+        onNotificationPress={() => navigation.navigate('Notifications')}
+        onCreditsPress={() => navigation.navigate('AccessTab')}
+        onSignInPress={() => navigation.navigate('SignIn')}
+      />
     </View>
   );
 };
@@ -437,247 +543,298 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: SPACING.containerPadding,
   },
-  // ── Search pill (Spotify: 500px radius, icon-aware padding) ──
-  searchBar: {
+  hero: {
+    paddingTop: 26,
+    paddingBottom: 0,
+  },
+  locationLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#1F1F1F',
-    borderRadius: RADIUS.pill,
-    paddingHorizontal: 16,
-    height: 48,
+    gap: 8,
+  },
+  locationText: {
+    flexShrink: 1,
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  heroTitle: {
+    marginTop: 8,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 53,
+    lineHeight: 48,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  heroAccent: {
+    color: COLORS.primary,
+  },
+  heroSub: {
+    maxWidth: 300,
+    marginTop: 12,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    lineHeight: 23,
+  },
+  searchShell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    minHeight: 60,
+    marginTop: 24,
+    paddingLeft: 16,
+    paddingRight: 7,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    marginBottom: 16,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+  },
+  searchShellFocused: {
+    borderColor: COLORS.primary,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
-    fontFamily: FONTS.regular,
-    paddingVertical: 0,
+    paddingVertical: 8,
+    color: COLORS.paper,
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    lineHeight: 20,
   },
-  // ── Credit banner ──
-  creditSummaryBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,90,31,0.06)',
-    borderRadius: RADIUS.default,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,90,31,0.18)',
-    marginBottom: 20,
+  clearBtn: {
+    padding: 6,
   },
-  creditIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
+  searchSubmit: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 6,
+    backgroundColor: COLORS.primary,
   },
-  creditTextCol: {
-    flex: 1,
-  },
-  creditTitle: {
-    fontSize: 10,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.primary,
-    letterSpacing: 1.6,
-  },
-  creditVal: {
-    fontSize: 18,
-    fontFamily: FONTS.black,
-    letterSpacing: -0.4,
-    marginTop: 1,
-  },
-  // ── Auth banner ──
-  authBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: RADIUS.xl,
-    padding: 14,
-    borderWidth: 1,
-    marginBottom: 20,
-  },
-  authBannerTitle: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
-  },
-  authBannerSub: {
-    fontSize: 11,
-    fontFamily: FONTS.regular,
-    marginTop: 2,
-  },
-  // ── Section headers (Spotify: 12px uppercase, silver, wide tracking) ──
-  sectionHeader: {
+  searchFeedback: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    minHeight: 30,
+    paddingTop: 7,
   },
-  sectionTitle: {
+  searchFeedbackText: {
+    flex: 1,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
     fontSize: 12,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.6,
+    lineHeight: 17,
   },
-  resetCatText: {
-    fontSize: 11,
+  searchFeedbackStrong: {
+    color: COLORS.paper,
     fontFamily: FONTS.bold,
+  },
+  feedbackClear: {
     color: COLORS.primary,
-    letterSpacing: 0.8,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 0.9,
   },
-  countText: {
-    fontSize: 11,
-    fontFamily: FONTS.medium,
-    color: COLORS.textMuted,
-  },
-  // ── Category cards ──
-  catCard: {
-    width: 148,
-    height: 190,
-    borderRadius: RADIUS.card,
-    marginRight: 10,
-    overflow: 'hidden',
-    backgroundColor: '#1A1A1E',
-  },
-  selectedCatCard: {},
-  catSelectedRim: {
-    ...StyleSheet.absoluteFillObject,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    borderRadius: RADIUS.card,
-  },
-  catImage: {
-    width: '100%',
-    height: '100%',
-  },
-  catScrim: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  catTopRow: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    right: 8,
+  signInBanner: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 11,
+    marginTop: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
   },
-  catCountPill: {
-    minWidth: 26,
-    height: 26,
-    paddingHorizontal: 7,
-    borderRadius: 13,
-    backgroundColor: 'rgba(8,8,10,0.66)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.16)',
+  signInIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primaryMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  catCountText: {
+  signInCopy: {
+    flex: 1,
+  },
+  signInTitle: {
+    color: COLORS.paper,
+    fontFamily: FONTS.bold,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  signInSub: {
+    marginTop: 1,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
     fontSize: 11,
-    fontFamily: FONTS.extraBold,
-    color: '#FFFFFF',
+    lineHeight: 16,
   },
-  catContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 12,
+  section: {
+    marginTop: 32,
   },
-  catTitle: {
-    fontSize: 20,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: 2,
-    textShadowColor: 'rgba(0,0,0,0.7)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+  categoryGrid: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  catSub: {
-    fontSize: 9.5,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.primary,
-    letterSpacing: 1.4,
-    marginTop: 3,
+  categoryCard: {
+    flex: 1,
+    minWidth: 0,
   },
-  // ── Facilities rail (peek next card) ──
-  facilitiesRail: {
+  categoryMedia: {
+    aspectRatio: 4 / 5,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.lineSoft,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surfaceBright,
+  },
+  categoryImage: {
+    width: '100%',
+    height: '100%',
+  },
+  categoryCopy: {
+    paddingTop: 8,
+    paddingHorizontal: 2,
+  },
+  categoryName: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 21,
+    lineHeight: 22,
+    letterSpacing: 0.35,
+    textTransform: 'uppercase',
+  },
+  categoryNote: {
     marginTop: 2,
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  facilitiesRail: {
     marginHorizontal: -SPACING.containerPadding,
     overflow: 'visible',
   },
   railContent: {
     paddingLeft: SPACING.containerPadding,
     paddingRight: SPACING.containerPadding,
-    paddingTop: 4,
+    paddingBottom: 4,
   },
   viewAllRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    marginTop: 12,
+    gap: 5,
+    marginTop: 10,
     paddingVertical: 10,
   },
   viewAllText: {
-    fontSize: 11,
-    fontFamily: FONTS.extraBold,
     color: COLORS.primary,
-    letterSpacing: 1.4,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 1.1,
   },
-  // ── Error / Empty / Loading ──
-  errorCard: {
-    backgroundColor: COLORS.glass,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
+  activitiesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  activityCard: {
+    width: '48.2%',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
+  },
+  activityMedia: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    backgroundColor: COLORS.surfaceBright,
+  },
+  activityImage: {
+    width: '100%',
+    height: '100%',
+  },
+  activityBody: {
+    flex: 1,
+    padding: 12,
+  },
+  activityKicker: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  activityName: {
+    marginTop: 3,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 22,
+    lineHeight: 21,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  activityMeta: {
+    marginTop: 3,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  activityFooter: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: SPACING.sm,
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  activityDistance: {
+    color: COLORS.meta,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  errorCard: {
+    alignItems: 'center',
+    padding: 20,
     borderWidth: 1,
     borderColor: COLORS.error,
+    borderRadius: RADIUS.default,
+    backgroundColor: 'rgba(243,114,127,0.05)',
   },
   errorTitle: {
+    marginTop: 8,
     color: COLORS.error,
-    fontSize: 15,
-    fontFamily: FONTS.extraBold,
-    marginTop: 6,
+    fontFamily: FONTS.bold,
+    fontSize: 14,
   },
   errorSub: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    textAlign: 'center',
     marginTop: 4,
-    lineHeight: 18,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
   },
   retryBtn: {
     marginTop: 12,
   },
-  emptyCard: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginVertical: SPACING.sm,
-    borderWidth: 1,
-  },
-  emptyTitle: {
-    fontSize: 16,
+  resetLink: {
+    color: COLORS.primary,
     fontFamily: FONTS.extraBold,
-    marginTop: 8,
-  },
-  emptySub: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 18,
+    fontSize: 10,
+    letterSpacing: 0.9,
   },
 });

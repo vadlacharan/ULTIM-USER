@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FONTS, RADIUS, SPACING } from '../theme/theme';
-import { useApp } from '../context/AppContext';
+import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 
 interface NoticeBannerProps {
   message?: string;
@@ -10,43 +9,31 @@ interface NoticeBannerProps {
 
 export const NoticeBanner: React.FC<NoticeBannerProps> = ({
   message = 'Activation Required: Visit center to get access & activate membership',
-}) => {
-  const { colors } = useApp();
-  return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: 'rgba(255, 90, 31, 0.08)',
-        },
-      ]}
-    >
-      <View style={styles.iconBox}>
-        <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
-      </View>
-      <Text style={[styles.text, { color: colors.onSurface }]}>{message}</Text>
-    </View>
-  );
-};
+}) => (
+  <View style={styles.container}>
+    <Ionicons name="information-circle-outline" size={17} color={COLORS.primary} />
+    <Text style={styles.text}>{message}</Text>
+  </View>
+);
 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: RADIUS.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 90, 31, 0.22)',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginVertical: SPACING.sm,
     paddingHorizontal: 12,
     paddingVertical: 11,
-    marginVertical: SPACING.sm,
-  },
-  iconBox: {
-    marginRight: 9,
+    borderWidth: 1,
+    borderColor: COLORS.primaryBorder,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.primaryMuted,
   },
   text: {
     flex: 1,
-    fontSize: 12.5,
+    color: COLORS.paperDim,
     fontFamily: FONTS.medium,
-    lineHeight: 18,
+    fontSize: 11.5,
+    lineHeight: 17,
   },
 });

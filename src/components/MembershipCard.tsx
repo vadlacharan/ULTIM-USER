@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -10,8 +9,7 @@ import Animated, {
   Easing,
   FadeInDown,
 } from 'react-native-reanimated';
-import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../theme/theme';
-import { getActivityIcon } from '../utils/activityIcons';
+import { COLORS, FONTS, RADIUS } from '../theme/theme';
 import { UserMembership } from '../types';
 import { CreditIcon } from './CreditIcon';
 
@@ -21,22 +19,10 @@ interface MembershipCardProps {
   index?: number;
 }
 
-const getCreditTier = (percent: number): { solid: string; label: string } => {
-  if (percent > 60) return { solid: COLORS.secondary, label: 'HEALTHY' };
-  if (percent > 25) return { solid: COLORS.primary, label: 'LOW CREDITS' };
-  return { solid: COLORS.error, label: 'CRITICAL' };
-};
-
 /**
- * Member Pass Card — Apple Wallet / Amex Metal archetype:
- * - Warm titanium-ember gradient body for active passes (`#2B160B` → `#171211` → `#121214`)
- *   with a glowing ember top hairline and a metallic chip mark.
- * - Split middle band: oversized credit numeral on the left, facility + plan
- *   identity on the right.
- * -Segmented 10-tick credit gauge + smooth bar so usage reads like a physical
- *   fuel/audio meter.
- * - Full-width `#141416` bottom action bar with expiry on the left and a
- *   solid ember `BOOK SESSION` pill on the right.
+ * Membership card — the reference's flat charcoal pass. Identity is set in
+ * Barlow Condensed, credits are tracked with a single orange gauge, and the
+ * booking action is a solid 44px arena block.
  */
 export const MembershipCard: React.FC<MembershipCardProps> = ({
   membership,
@@ -45,24 +31,22 @@ export const MembershipCard: React.FC<MembershipCardProps> = ({
 }) => {
   const isActive = membership.status === 'ACTIVE';
   const amountDue = Math.max(0, Number(membership.amountDue ?? 0));
-
-  const percentRemaining =
-    membership.totalCredits > 0
-      ? Math.max(0, Math.min(100, (membership.remainingCredits / membership.totalCredits) * 100))
-      : 0;
-  const tier = getCreditTier(percentRemaining);
-  const activityIcon = getActivityIcon(membership.validActivities?.[0] || membership.planTitle);
-  const activitiesList = (membership.validActivities || []).slice(0, 4);
+  const total = Math.max(membership.totalCredits, 1);
+  const remaining = Math.max(0, membership.remainingCredits);
+  const used = Math.max(0, membership.totalCredits - remaining);
+  const usedPercent = Math.max(0, Math.min(100, (used / total) * 100));
+  const activitiesList = (membership.validActivities || []).slice(0, 3);
+  const canBook = isActive && remaining > 0;
 
   const fill = useSharedValue(0);
 
   useEffect(() => {
     fill.value = withDelay(
-      120,
-      withTiming(percentRemaining, { duration: 750, easing: Easing.out(Easing.cubic) })
+      100,
+      withTiming(usedPercent, { duration: 720, easing: Easing.out(Easing.cubic) })
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [percentRemaining]);
+  }, [usedPercent]);
 
   const fillStyle = useAnimatedStyle(() => ({
     width: `${fill.value}%`,
@@ -70,465 +54,270 @@ export const MembershipCard: React.FC<MembershipCardProps> = ({
 
   return (
     <Animated.View entering={FadeInDown.delay(Math.min(index, 5) * 60).duration(340).damping(24)}>
-      <View style={[styles.wrapper, isActive ? SHADOWS.float : SHADOWS.card]}>
-        <LinearGradient
-          colors={
-            isActive
-              ? ['#2A150A', '#191413', '#141417']
-              : ['#1C1C20', '#161619', '#141416']
-          }
-          locations={[0, 0.5, 1]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[
-            styles.card,
-            isActive ? styles.cardActive : styles.cardMuted,
-          ]}
-        >
-          {/* Top metallic edge highlight */}
-          <LinearGradient
-            colors={
-              isActive
-                ? ['rgba(255,90,31,0.0)', 'rgba(255,122,61,0.75)', 'rgba(233,181,76,0.45)', 'rgba(255,90,31,0.0)']
-                : ['transparent', 'rgba(255,255,255,0.12)', 'transparent']
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.topEdgeGlow}
-          />
+      <View
+        style={[
+          styles.card,
+          isActive ? styles.cardActive : styles.cardExpired,
+        ]}
+      >
+        <View style={styles.head}>
+          <View style={styles.heading}>
+            <Text style={styles.kicker}>
+              {isActive ? membership.facilityName : 'Past membership'}
+            </Text>
+            <Text style={styles.name} numberOfLines={2}>
+              {membership.planTitle}
+            </Text>
+          </View>
+          <View style={[styles.status, isActive ? styles.statusActive : styles.statusExpired]}>
+            <View style={[styles.statusDot, { backgroundColor: isActive ? COLORS.success : COLORS.meta }]} />
+            <Text style={[styles.statusText, { color: isActive ? COLORS.success : COLORS.muted }]}>
+              {isActive ? 'ACTIVE' : 'EXPIRED'}
+            </Text>
+          </View>
+        </View>
 
-          {/* Watermark sport glyph */}
-          <MaterialCommunityIcons
-            name={activityIcon}
-            size={150}
-            color={isActive ? 'rgba(255,90,31,0.06)' : 'rgba(255,255,255,0.03)'}
-            style={styles.decorGlyph}
-          />
+        <Text style={styles.includes} numberOfLines={2}>
+          {activitiesList.length > 0
+            ? `Includes ${activitiesList.join(', ')}`
+            : `Includes access at ${membership.facilityName}`}
+        </Text>
 
-          <View style={styles.bodyPad}>
-            {/* ── Row 1: Metallic pass chip + status badge ── */}
-            <View style={styles.topBar}>
-              <View style={styles.passBrandRow}>
-                <LinearGradient
-                  colors={isActive ? ['#F2C05F', '#C98A27'] : ['#3A3A40', '#27272C']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.metalChip}
-                >
-                  <MaterialCommunityIcons
-                    name={activityIcon}
-                    size={15}
-                    color={isActive ? '#1E1710' : '#B3B3B3'}
-                  />
-                </LinearGradient>
-                <View>
-                  <Text style={styles.passIssuer}>ULTIM MEMBER PASS</Text>
-                  <Text style={styles.passSerial}>#{String(membership.id).slice(-6).toUpperCase()}</Text>
-                </View>
-              </View>
-
-              <View
-                style={[
-                  styles.statusBadge,
-                  isActive ? styles.statusBadgeActive : styles.statusBadgeMuted,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.statusDot,
-                    { backgroundColor: isActive ? COLORS.primary : COLORS.textMuted },
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    { color: isActive ? '#FFFFFF' : COLORS.textMuted },
-                  ]}
-                >
-                  {membership.status}
-                </Text>
-              </View>
+        <View style={styles.tracker}>
+          <View style={styles.trackerHead}>
+            <Text style={styles.trackerLabel}>
+              {used} OF {membership.totalCredits} CREDITS USED
+            </Text>
+            <View style={styles.remainingRow}>
+              <Text style={styles.remainingValue}>{remaining}</Text>
+              <CreditIcon size={13} />
+              <Text style={styles.remainingLabel}>LEFT</Text>
             </View>
+          </View>
+          <View style={styles.progress}>
+            <Animated.View
+              style={[
+                styles.progressFill,
+                fillStyle,
+                { backgroundColor: isActive ? COLORS.primary : COLORS.meta },
+              ]}
+            />
+          </View>
+        </View>
 
-            {/* ── Row 2: Facility Identity + Plan ── */}
-            <View style={styles.identityBlock}>
-              <Text style={styles.facilityName} numberOfLines={1}>
-                {membership.facilityName}
-              </Text>
-              <Text style={styles.planTitle} numberOfLines={1}>
-                {membership.planTitle}
-              </Text>
-            </View>
+        {amountDue > 0 && (
+          <View style={styles.dueRow}>
+            <Ionicons name="alert-circle-outline" size={13} color={COLORS.primary} />
+            <Text style={styles.dueText}>₹{amountDue} due at reception</Text>
+          </View>
+        )}
 
-            {/* ── Row 3: Recessed Credit Vault Panel ── */}
-            <View style={styles.vaultPanel}>
-              <View style={styles.vaultTopRow}>
-                <View>
-                  <Text style={styles.vaultLabel}>AVAILABLE BALANCE</Text>
-                  <View style={styles.creditsNumRow}>
-                    <Text style={styles.creditsNum}>{membership.remainingCredits}</Text>
-                    <CreditIcon size={24} />
-                    <Text style={styles.creditsTotal}>/ {membership.totalCredits}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.tierCol}>
-                  {amountDue > 0 ? (
-                    <View style={styles.duePill}>
-                      <Ionicons name="alert-circle" size={11} color={COLORS.secondary} />
-                      <Text style={styles.duePillText}>₹{amountDue} DUE</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.tierBadge}>
-                      <Text style={[styles.tierText, { color: tier.solid }]}>{tier.label}</Text>
-                    </View>
-                  )}
-                  <Text style={styles.percentText}>{Math.round(percentRemaining)}% LEFT</Text>
-                </View>
-              </View>
-
-              {isActive && (
-                <View style={styles.meterTrack}>
-                  <Animated.View
-                    style={[
-                      styles.meterFill,
-                      fillStyle,
-                      { backgroundColor: tier.solid },
-                    ]}
-                  />
-                </View>
-              )}
-            </View>
-
-            {/* ── Row 4: Supported sport pills ── */}
-            {activitiesList.length > 0 && (
-              <View style={styles.activitiesRow}>
-                {activitiesList.map((act, i) => (
-                  <View key={`${act}-${i}`} style={styles.actPill}>
-                    <MaterialCommunityIcons
-                      name={getActivityIcon(act)}
-                      size={11}
-                      color={COLORS.secondary}
-                    />
-                    <Text style={styles.actPillText}>{act.toUpperCase()}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+        <View style={styles.footer}>
+          <View style={styles.validity}>
+            <Text style={styles.validityLabel}>{isActive ? 'VALID UNTIL' : 'EXPIRED ON'}</Text>
+            <Text style={styles.validityValue}>{membership.expiryDate}</Text>
           </View>
 
-          {/* ── Docked Bottom Action Bar ── */}
-          <View style={styles.dockBar}>
-            <View style={styles.expiryCol}>
-              <Text style={styles.expiryLabel}>VALID UNTIL</Text>
-              <Text style={styles.expiryValue}>{membership.expiryDate}</Text>
-            </View>
-
-            {isActive ? (
-              <Pressable
-                onPress={onBookSession}
-                style={({ pressed }) => [
-                  styles.bookCta,
-                  SHADOWS.ember,
-                  { transform: [{ scale: pressed ? 0.96 : 1 }] },
-                ]}
-              >
-                <Text style={styles.bookCtaText}>BOOK SESSION</Text>
-                <View style={styles.bookCtaCircle}>
-                  <Ionicons name="arrow-forward" size={13} color={COLORS.primary} />
-                </View>
-              </Pressable>
-            ) : (
-              <View style={styles.inactiveTag}>
-                <Text style={styles.inactiveTagText}>VISIT DESK TO RENEW</Text>
-              </View>
-            )}
-          </View>
-        </LinearGradient>
+          <Pressable
+            onPress={onBookSession}
+            disabled={!canBook}
+            accessibilityRole="button"
+            accessibilityLabel={`Book a session with ${membership.planTitle}`}
+            style={({ pressed }) => [
+              styles.book,
+              canBook ? styles.bookEnabled : styles.bookDisabled,
+              pressed && canBook && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={[styles.bookText, !canBook && { color: COLORS.meta }]}>
+              {isActive ? (remaining > 0 ? 'BOOK' : 'NO CREDITS') : 'EXPIRED'}
+            </Text>
+            {canBook && <Ionicons name="arrow-forward" size={14} color={COLORS.onPrimary} />}
+          </Pressable>
+        </View>
       </View>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  wrapper: {
-    marginBottom: SPACING.cardGap + 2,
-    borderRadius: 18,
-  },
   card: {
-    borderRadius: 18,
-    overflow: 'hidden',
+    gap: 13,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
   },
   cardActive: {
-    borderColor: 'rgba(255,122,61,0.32)',
+    borderColor: 'rgba(255,106,26,0.48)',
+    backgroundColor: '#17110D',
   },
-  cardMuted: {
-    borderColor: 'rgba(255,255,255,0.08)',
-    opacity: 0.78,
+  cardExpired: {
+    borderColor: COLORS.lineSoft,
+    backgroundColor: '#0E0F11',
+    opacity: 0.9,
   },
-  topEdgeGlow: {
-    height: 2,
-    width: '100%',
-  },
-  decorGlyph: {
-    position: 'absolute',
-    right: -24,
-    top: 28,
-    transform: [{ rotate: '-14deg' }],
-  },
-  bodyPad: {
-    padding: 18,
-    paddingBottom: 14,
-  },
-
-  // ── Top bar ──
-  topBar: {
+  head: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: 12,
   },
-  passBrandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  heading: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
   },
-  metalChip: {
-    width: 34,
-    height: 26,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  passIssuer: {
-    fontSize: 9.5,
+  kicker: {
+    color: COLORS.muted,
     fontFamily: FONTS.extraBold,
-    color: '#FFFFFF',
-    letterSpacing: 1.4,
-  },
-  passSerial: {
     fontSize: 9,
-    fontFamily: FONTS.medium,
-    color: COLORS.textMuted,
-    letterSpacing: 0.8,
-    marginTop: 1,
+    lineHeight: 12,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  statusBadge: {
+  name: {
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 31,
+    lineHeight: 29,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  status: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
+    minHeight: 24,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
+  },
+  statusActive: {
+    backgroundColor: 'rgba(123,217,154,0.10)',
+  },
+  statusExpired: {
     borderWidth: 1,
-  },
-  statusBadgeActive: {
-    backgroundColor: 'rgba(255,90,31,0.16)',
-    borderColor: 'rgba(255,90,31,0.45)',
-  },
-  statusBadgeMuted: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: COLORS.line,
   },
   statusDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: 3,
   },
   statusText: {
+    fontFamily: FONTS.extraBold,
     fontSize: 9,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 1.2,
+    lineHeight: 11,
+    letterSpacing: 0.6,
   },
-
-  // ── Identity ──
-  identityBlock: {
-    marginTop: 14,
+  includes: {
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    lineHeight: 16,
+    textTransform: 'capitalize',
   },
-  facilityName: {
-    fontSize: 22,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-    lineHeight: 26,
+  tracker: {
+    gap: 8,
   },
-  planTitle: {
-    fontSize: 13,
-    fontFamily: FONTS.semiBold,
-    color: COLORS.secondary,
-    marginTop: 2,
-  },
-
-  // ── Recessed Vault Panel ──
-  vaultPanel: {
-    marginTop: 14,
-    backgroundColor: 'rgba(10,10,12,0.58)',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-  },
-  vaultTopRow: {
+  trackerHead: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
   },
-  vaultLabel: {
-    fontSize: 8.5,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.4,
-  },
-  creditsNumRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-    marginTop: 2,
-  },
-  creditsNum: {
-    fontSize: 34,
-    fontFamily: FONTS.black,
-    color: '#FFFFFF',
-    letterSpacing: -1,
-    lineHeight: 38,
-  },
-  creditsTotal: {
-    fontSize: 13,
+  trackerLabel: {
+    color: COLORS.muted,
     fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
-  },
-  tierCol: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  tierBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  tierText: {
-    fontSize: 8.5,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 1.1,
-  },
-  percentText: {
-    fontSize: 10,
-    fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
+    fontSize: 9,
+    lineHeight: 12,
     letterSpacing: 0.5,
   },
-  duePill: {
+  remainingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(233,181,76,0.16)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(233,181,76,0.45)',
+    gap: 3,
   },
-  duePillText: {
-    fontSize: 9,
+  remainingValue: {
+    color: COLORS.paper,
     fontFamily: FONTS.extraBold,
-    color: COLORS.secondary,
-    letterSpacing: 0.8,
+    fontSize: 12,
   },
-  meterTrack: {
-    height: 6,
-    borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    marginTop: 10,
-    overflow: 'hidden',
-  },
-  meterFill: {
-    height: '100%',
-    borderRadius: RADIUS.full,
-  },
-
-  // ── Activities ──
-  activitiesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 12,
-  },
-  actPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  actPillText: {
-    fontSize: 9,
-    fontFamily: FONTS.bold,
-    color: '#CBCBCB',
-    letterSpacing: 0.8,
-  },
-
-  // ── Docked Bottom Bar ──
-  dockBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(10,10,12,0.75)',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.07)',
-  },
-  expiryCol: {
-    gap: 1,
-  },
-  expiryLabel: {
+  remainingLabel: {
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
     fontSize: 8,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.textMuted,
-    letterSpacing: 1.3,
+    letterSpacing: 0.6,
   },
-  expiryValue: {
-    fontSize: 12.5,
-    fontFamily: FONTS.bold,
-    color: '#FFFFFF',
+  progress: {
+    height: 6,
+    overflow: 'hidden',
+    borderRadius: 3,
+    backgroundColor: COLORS.line,
   },
-  bookCta: {
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  dueRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: COLORS.primary,
-    paddingLeft: 16,
-    paddingRight: 6,
-    height: 38,
-    borderRadius: RADIUS.full,
+    gap: 5,
   },
-  bookCtaText: {
-    fontSize: 11,
-    fontFamily: FONTS.extraBold,
-    color: COLORS.onPrimary,
-    letterSpacing: 1.3,
+  dueText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
   },
-  bookCtaCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#0A0503',
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 1,
+  },
+  validity: {
+    gap: 2,
+    flex: 1,
+  },
+  validityLabel: {
+    color: COLORS.muted,
+    fontFamily: FONTS.bold,
+    fontSize: 8.5,
+    lineHeight: 11,
+    letterSpacing: 0.7,
+  },
+  validityValue: {
+    color: COLORS.paperDim,
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  book: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
+    minWidth: 104,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 12,
   },
-  inactiveTag: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: RADIUS.full,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  bookEnabled: {
+    backgroundColor: COLORS.primary,
   },
-  inactiveTagText: {
-    fontSize: 9,
-    fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
-    letterSpacing: 1,
+  bookDisabled: {
+    backgroundColor: COLORS.surfaceBright,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+  },
+  bookText: {
+    color: COLORS.onPrimary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 0.7,
   },
 });

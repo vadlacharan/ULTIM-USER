@@ -7,13 +7,21 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../theme/theme';
-import { BlurHeader, useBlurBackHeaderLayout } from '../components/Blur';
-import { IconButton } from '../components/buttons';
-import { CreditIcon } from '../components/CreditIcon';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
+import { DetailTopBar, ArenaEmptyState, Eyebrow } from '../components/ArenaUI';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
 import { CreditTransaction } from '../types';
+
+const inr = (n: number) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+
+const methodLabel = (m?: string) => {
+  const v = String(m || '').toLowerCase();
+  if (v === 'banktransfer') return 'BANK TRANSFER';
+  if (!v) return 'OFFLINE';
+  return v.toUpperCase();
+};
 
 interface TransactionsScreenProps {
   navigation: any;
@@ -29,8 +37,8 @@ const monthLabel = (dateStr: string): string => {
 };
 
 export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigation }) => {
-  const { transactions, totalActiveCredits, isLoading, colors } = useApp();
-  const { top: headerTop, height: headerHeight } = useBlurBackHeaderLayout();
+  const { transactions, isLoading, colors } = useApp();
+  const insets = useSafeAreaInsets();
 
   const sections = useMemo(() => {
     const byMonth = new Map<string, CreditTransaction[]>();
@@ -43,46 +51,35 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
   }, [transactions]);
 
   const totals = useMemo(() => {
-    let earned = 0;
-    let spent = 0;
+    let paid = 0;
     transactions.forEach((tx) => {
-      if (tx.credits >= 0) earned += tx.credits;
-      else spent += Math.abs(tx.credits);
+      paid += Number(tx.amountINR ?? tx.credits ?? 0) || 0;
     });
-    return { earned, spent };
+    return { paid, count: transactions.length };
   }, [transactions]);
 
-  const renderItem = (tx: CreditTransaction) => {
-    const isCredit = tx.credits >= 0;
-    const accent = isCredit ? COLORS.secondary : COLORS.primary;
+  const topBarHeight = Math.max(insets.top, 12) + 60;
 
+  const renderItem = (tx: CreditTransaction) => {
     return (
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        <View style={[styles.iconChip, { backgroundColor: `${accent}1F`, borderColor: `${accent}47` }]}>
-          <Ionicons name={isCredit ? 'arrow-down' : 'arrow-up'} size={16} color={accent} />
+      <View style={styles.card}>
+        <View style={[styles.iconChip, { backgroundColor: `${COLORS.success}18` }]}>
+          <Ionicons name="cash-outline" size={16} color={COLORS.success} />
         </View>
 
         <View style={styles.cardBody}>
-          <Text style={[styles.cardTitle, { color: colors.onSurface }]} numberOfLines={1}>
+          <Text style={styles.cardTitle} numberOfLines={1}>
             {tx.description}
           </Text>
-          <Text style={[styles.cardFacility, { color: colors.textMuted }]} numberOfLines={1}>
+          <Text style={styles.cardFacility} numberOfLines={1}>
             {tx.facilityName}
           </Text>
-          <Text style={[styles.cardDate, { color: 'rgba(255,255,255,0.38)' }]}>{tx.date}</Text>
+          <Text style={styles.cardDate}>{tx.date}</Text>
         </View>
 
         <View style={styles.amountCol}>
-          <View style={styles.amountRow}>
-            <Text style={[styles.amountText, { color: accent }]}>
-              {isCredit ? '+' : '-'}
-              {Math.abs(tx.credits)}
-            </Text>
-            <CreditIcon size={14} />
-          </View>
-          <Text style={[styles.amountLabel, { color: colors.textMuted }]}>
-            {isCredit ? 'ADDED' : 'SPENT'}
-          </Text>
+          <Text style={styles.amountText}>{inr(tx.amountINR ?? tx.credits ?? 0)}</Text>
+          <Text style={styles.amountLabel}>{methodLabel(tx.paymentMethod)} · PAID</Text>
         </View>
       </View>
     );
@@ -91,6 +88,10 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppBackground />
+
+      <View style={[styles.topBar, { height: topBarHeight, paddingTop: Math.max(insets.top, 12) + 4 }]}>
+        <DetailTopBar label="Credit ledger" onBack={() => navigation.goBack()} />
+      </View>
 
       <SectionList
         sections={sections}
@@ -101,27 +102,31 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
         )}
         stickySectionHeadersEnabled={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        SectionSeparatorComponent={() => <View style={{ height: 6 }} />}
-        contentContainerStyle={[styles.listContent, { paddingTop: headerHeight + 24 }]}
+        SectionSeparatorComponent={() => <View style={{ height: 4 }} />}
+        contentContainerStyle={[styles.listContent, { paddingTop: topBarHeight + 8 }]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View style={[styles.summaryCard, { backgroundColor: colors.emberPanel, borderColor: colors.emberBorder }]}>
-            <View style={styles.summaryCol}>
-              <Text style={styles.summaryLabel}>CURRENT BALANCE</Text>
-              <View style={styles.summaryValueRow}>
-                <Text style={[styles.summaryValue, { color: colors.onSurface }]}>{totalActiveCredits}</Text>
-                <CreditIcon size={18} />
+          <View>
+            <View style={styles.pageHead}>
+              <Eyebrow>Payments</Eyebrow>
+              <Text style={styles.pageTitle}>Transactions</Text>
+              <Text style={styles.pageSub}>
+                Real rupee payments made at the reception desk, linked to your passes.
+              </Text>
+            </View>
+
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryCol}>
+                <Text style={styles.summaryLabel}>TOTAL PAID</Text>
+                <Text style={styles.summaryValue}>{inr(totals.paid)}</Text>
               </View>
-            </View>
-            <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
-            <View style={styles.summaryCol}>
-              <Text style={styles.summaryLabel}>EARNED</Text>
-              <Text style={[styles.summaryValueSm, { color: COLORS.secondary }]}>+{totals.earned}</Text>
-            </View>
-            <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
-            <View style={styles.summaryCol}>
-              <Text style={styles.summaryLabel}>SPENT</Text>
-              <Text style={[styles.summaryValueSm, { color: COLORS.primary }]}>-{totals.spent}</Text>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryCol}>
+                <Text style={styles.summaryLabel}>PAYMENTS</Text>
+                <Text style={[styles.summaryValueSm, { color: COLORS.paper }]}>
+                  {totals.count}
+                </Text>
+              </View>
             </View>
           </View>
         }
@@ -129,39 +134,14 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ navigati
           isLoading ? (
             <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 60 }} />
           ) : (
-            <View style={[styles.emptyCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-              <Ionicons name="receipt-outline" size={40} color={colors.textMuted} />
-              <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>No Transactions Yet</Text>
-              <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-                Credits you receive at a center reception desk and credits spent on sessions will show up here.
-              </Text>
-            </View>
+            <ArenaEmptyState
+              icon="receipt-outline"
+              title="No transactions yet"
+              copy="Payments you make at a center reception desk will show up here with the real rupee amount."
+            />
           )
         }
       />
-
-      {/* Floating blur header — list scrolls behind it */}
-      <BlurHeader
-        height={headerHeight}
-        contentStyle={{
-          paddingTop: headerTop,
-          paddingHorizontal: SPACING.containerPadding,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <IconButton
-          icon="arrow-back"
-          size={40}
-          iconSize={22}
-          iconColor={colors.onSurface}
-          backgroundColor={colors.glassHigh}
-          onPress={() => navigation.goBack()}
-        />
-        <Text style={[styles.headerTitle, { color: colors.onSurface }]}>Transactions</Text>
-        <View style={{ width: 40 }} />
-      </BlurHeader>
     </View>
   );
 };
@@ -171,25 +151,50 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  headerTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: 0.5,
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    paddingHorizontal: SPACING.containerPadding,
+    backgroundColor: COLORS.background,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lineSoft,
   },
   listContent: {
     paddingHorizontal: SPACING.containerPadding,
     paddingBottom: SPACING.xl,
   },
-
-  // ── Summary ──
+  pageHead: {
+    marginBottom: 18,
+  },
+  pageTitle: {
+    marginTop: 6,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 38,
+    lineHeight: 36,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  pageSub: {
+    maxWidth: 320,
+    marginTop: 8,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    lineHeight: 19,
+  },
   summaryCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: RADIUS.card,
-    borderWidth: 1,
     paddingVertical: 16,
-    marginBottom: SPACING.md,
-    ...SHADOWS.card,
+    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
   },
   summaryCol: {
     flex: 1,
@@ -199,115 +204,95 @@ const styles = StyleSheet.create({
   summaryDivider: {
     width: 1,
     height: 34,
+    backgroundColor: COLORS.lineSoft,
   },
   summaryLabel: {
-    fontSize: 8.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.2,
-    color: COLORS.textMuted,
-  },
-  summaryValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
+    color: COLORS.meta,
+    fontFamily: FONTS.extraBold,
+    fontSize: 8,
+    lineHeight: 11,
+    letterSpacing: 0.8,
   },
   summaryValue: {
-    fontSize: 22,
-    fontFamily: FONTS.black,
-    letterSpacing: -0.5,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 24,
+    lineHeight: 24,
+    letterSpacing: 0.3,
   },
   summaryValueSm: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.display,
+    fontSize: 20,
+    lineHeight: 22,
+    letterSpacing: 0.3,
   },
-
-  // ── Sections ──
   sectionHeader: {
-    fontSize: 10,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.4,
-    color: COLORS.textMuted,
-    marginTop: SPACING.sm,
+    marginTop: 8,
     marginBottom: 10,
+    color: COLORS.meta,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9.5,
+    lineHeight: 12,
+    letterSpacing: 1.1,
   },
   separator: {
-    height: 10,
+    height: 9,
   },
-
-  // ── Card ──
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderRadius: RADIUS.card,
-    borderWidth: 1,
     padding: 13,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
   },
   iconChip: {
     width: 38,
     height: 38,
-    borderRadius: RADIUS.full,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
   },
   cardBody: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   cardTitle: {
-    fontSize: 13.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: -0.2,
+    color: COLORS.paper,
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
   },
   cardFacility: {
-    fontSize: 11.5,
-    fontFamily: FONTS.medium,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    lineHeight: 15,
   },
   cardDate: {
-    fontSize: 10.5,
+    color: COLORS.meta,
     fontFamily: FONTS.regular,
-    marginTop: 1,
+    fontSize: 10,
+    lineHeight: 13,
   },
   amountCol: {
     alignItems: 'flex-end',
     gap: 3,
   },
-  amountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
   amountText: {
-    fontSize: 16,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.3,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 20,
+    lineHeight: 22,
+    letterSpacing: 0.3,
   },
   amountLabel: {
+    color: COLORS.meta,
+    fontFamily: FONTS.extraBold,
     fontSize: 8,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.2,
-  },
-
-  // ── Empty ──
-  emptyCard: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginTop: SPACING.sm,
-    borderWidth: 1,
-    ...SHADOWS.card,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    marginTop: 10,
-  },
-  emptySub: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18,
+    letterSpacing: 0.8,
   },
 });

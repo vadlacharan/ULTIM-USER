@@ -1,6 +1,9 @@
 import { UserProfile, Facility, MembershipPlan, UserMembership, Booking, CreditTransaction } from '../types';
 
-export const API_BASE_URL = 'https://ultim-server.vercel.app/api';
+export const API_BASE_URL = 'https://api.ultimforall.com/api';
+
+/** Origin without the trailing `/api` — used to resolve relative media URLs. */
+export const API_ORIGIN = API_BASE_URL.replace(/\/api$/, '');
 
 class ApiService {
   private token: string | null = null;

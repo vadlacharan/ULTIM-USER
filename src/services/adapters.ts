@@ -1,4 +1,5 @@
 import { Facility, MembershipPlan, UserMembership, Booking, CreditTransaction, CategoryType } from '../types';
+import { API_ORIGIN } from './api';
 import { calculateHaversineDistanceKm, formatCalculatedDistance } from '../utils/distance';
 import { isSessionPast } from '../utils/bookingStatus';
 
@@ -14,7 +15,7 @@ export const adaptTenantToFacility = (
     tenant.facilityImages.forEach((imgObj: any) => {
       const url = imgObj?.facilityImage?.url || imgObj?.url;
       if (url) {
-        images.push(url.startsWith('http') ? url : `https://ultim-server.vercel.app${url}`);
+        images.push(url.startsWith('http') ? url : `${API_ORIGIN}${url}`);
       }
     });
   }
@@ -23,7 +24,7 @@ export const adaptTenantToFacility = (
   const imageUrl = rawImageUrl
     ? rawImageUrl.startsWith('http')
       ? rawImageUrl
-      : `https://ultim-server.vercel.app${rawImageUrl}`
+      : `${API_ORIGIN}${rawImageUrl}`
     : undefined;
 
   const sportsTags = tenant.activities && Array.isArray(tenant.activities)
@@ -161,7 +162,7 @@ export const adaptBooking = (b: any): Booking => {
   const facilityImage = rawImage
     ? rawImage.startsWith('http')
       ? rawImage
-      : `https://ultim-server.vercel.app${rawImage}`
+      : `${API_ORIGIN}${rawImage}`
     : undefined;
 
   const dateStr = isToday ? 'Today' : sessionDateStr;
@@ -205,15 +206,31 @@ export const adaptBooking = (b: any): Booking => {
 };
 
 /**
- * Adapter helper to transform Payload Transaction response to UI CreditTransaction model
+ * Adapter helper to transform Payload Transaction response to UI CreditTransaction model.
+ * Transactions are real-money payments (INR) collected at the desk — NOT credit
+ * deltas. Keep the raw rupee amount so the ledger can show real INR.
  */
 export const adaptTransaction = (tx: any): CreditTransaction => {
+  const amountINR = Number(tx.transactionAmount ?? 0) || 0;
+  const planName =
+    (tx.membershipPlan && typeof tx.membershipPlan === 'object'
+      ? tx.membershipPlan.planName
+      : null) || 'Membership payment';
+  const membershipId =
+    tx.membership && typeof tx.membership === 'object'
+      ? String(tx.membership.id ?? '')
+      : tx.membership
+        ? String(tx.membership)
+        : undefined;
   return {
     id: String(tx.id),
-    type: 'SPENT_BOOKING',
-    credits: tx.transactionAmount ? -Math.round(tx.transactionAmount) : 0,
-    description: `Transaction (${tx.paymentMethod?.toUpperCase() || 'OFFLINE'})`,
+    type: 'EARNED_OFFLINE',
+    credits: Math.round(amountINR),
+    amountINR,
+    paymentMethod: tx.paymentMethod ? String(tx.paymentMethod) : undefined,
+    membershipId: membershipId || undefined,
+    description: planName,
     date: tx.transactionDate ? tx.transactionDate.replace('T', ' ').slice(0, 16) : 'N/A',
-    facilityName: tx.membershipPlan?.planName || 'Facility Service',
+    facilityName: planName,
   };
 };

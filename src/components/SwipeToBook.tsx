@@ -12,7 +12,7 @@ import Animated, {
   interpolate,
   Extrapolation,
 } from 'react-native-reanimated';
-import { FONTS, MOTION, RADIUS } from '../theme/theme';
+import { COLORS, FONTS, MOTION, RADIUS } from '../theme/theme';
 import { useApp } from '../context/AppContext';
 import { CreditIcon } from './CreditIcon';
 
@@ -151,7 +151,10 @@ export const SwipeToBook: React.FC<SwipeToBookProps> = ({
     <View
       style={[
         styles.container,
-        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        {
+          backgroundColor: COLORS.surface,
+          borderColor: isInteractionDisabled ? COLORS.line : 'rgba(255,106,26,0.48)',
+        },
         isInteractionDisabled && styles.disabledContainer,
       ]}
       onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
@@ -166,28 +169,27 @@ export const SwipeToBook: React.FC<SwipeToBookProps> = ({
 
       <View style={styles.textWrapper} pointerEvents="none">
         {isSubmitting ? (
-          <Text style={[styles.swipeText, { color: colors.onSurface }]}>CONFIRMING BOOKING...</Text>
+          <Text style={[styles.swipeText, { color: COLORS.paper }]}>CONFIRMING BOOKING...</Text>
         ) : disabled ? (
-          <Text style={[styles.swipeText, { color: colors.onSurface }]}>{disabledReason}</Text>
+          <Text style={[styles.swipeText, { color: COLORS.muted }]}>{disabledReason}</Text>
         ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-            <Text style={[styles.swipeTextInline, { color: colors.onSurface }]}>
-              SWIPE TO BOOK ({requiredCredits}
-            </Text>
-            <CreditIcon size={20} />
-            <Text style={[styles.swipeTextInline, { color: colors.onSurface }]}>)</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+            <Text style={[styles.swipeTextInline, { color: COLORS.paper }]}>SWIPE TO BOOK</Text>
+            <Text style={[styles.swipeTextInline, { color: COLORS.primary }]}>·</Text>
+            <Text style={[styles.swipeTextInline, { color: COLORS.paper }]}>{requiredCredits}</Text>
+            <CreditIcon size={18} />
           </View>
         )}
       </View>
 
       <Animated.View
         pointerEvents="none"
-        style={[styles.handle, { backgroundColor: colors.primary }, handleStyle]}
+        style={[styles.handle, { backgroundColor: COLORS.primary }, handleStyle]}
       >
         {isSubmitting ? (
-          <ActivityIndicator size="small" color="#FFF" />
+          <ActivityIndicator size="small" color={COLORS.onPrimary} />
         ) : (
-          <Ionicons name="arrow-forward-sharp" size={24} color="#FFF" />
+          <Ionicons name="arrow-forward" size={22} color={COLORS.onPrimary} />
         )}
       </Animated.View>
     </View>
@@ -196,10 +198,10 @@ export const SwipeToBook: React.FC<SwipeToBookProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    height: 60,
+    height: 64,
     borderRadius: RADIUS.full,
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     position: 'relative',
     overflow: 'hidden',
     borderWidth: 1,
@@ -212,12 +214,12 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 90, 31, 0.4)',
+    backgroundColor: 'rgba(255,106,26,0.22)',
     borderRadius: RADIUS.full,
   },
   glowFill: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,90,31,0.08)',
+    backgroundColor: 'rgba(255,106,26,0.04)',
     borderRadius: RADIUS.full,
   },
   textWrapper: {
@@ -229,14 +231,16 @@ const styles = StyleSheet.create({
   },
   swipeText: {
     textAlign: 'center',
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: FONTS.extraBold,
-    letterSpacing: 0.5,
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
   },
   swipeTextInline: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: FONTS.extraBold,
-    letterSpacing: 0.5,
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
   },
   handle: {
     width: HANDLE,
@@ -246,9 +250,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 2,
     elevation: 4,
-    shadowColor: '#FF5A1F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
   },
 });

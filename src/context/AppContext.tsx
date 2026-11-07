@@ -74,6 +74,8 @@ interface AppContextType {
     durationMins: 60 | 120;
     creditsSpent: number;
     facilityImage?: string;
+    /** When set (e.g. BOOK tapped on a specific pass), that pass is used. */
+    membershipId?: string;
   }) => Promise<{ success: boolean; error?: string; booking?: Booking }>;
 
   cancelBooking: (bookingId: string) => Promise<{ success: boolean; error?: string }>;
@@ -261,7 +263,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               setUser(restoredUser);
               setIsAuthenticated(true);
               setIsGuest(false);
-              await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(restoredUser));
+              await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(restoredUser)).catch(() => {});
               fetchUserDataFromBackend(restoredUser.id);
             }
           } catch (netErr: any) {
@@ -397,7 +399,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         if (!hasName) {
           // New user — token already set inside verifyOtp, persist it but don't authenticate yet
-          await SecureStore.setItemAsync(SECURE_TOKEN_KEY, res.token);
+          await SecureStore.setItemAsync(SECURE_TOKEN_KEY, res.token).catch(() => {});
           return { success: true, needsName: true, pendingUserId: String(res.user.id) };
         }
 
@@ -411,8 +413,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setUser(loggedUser);
         setIsAuthenticated(true);
               setIsGuest(false);
-        await SecureStore.setItemAsync(SECURE_TOKEN_KEY, res.token);
-        await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(loggedUser));
+        await SecureStore.setItemAsync(SECURE_TOKEN_KEY, res.token).catch(() => {});
+        await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(loggedUser)).catch(() => {});
         api.registerPushToken(`fcm-${loggedUser.id}-${Date.now()}`, 'android').catch(() => {});
         await fetchUserDataFromBackend(loggedUser.id);
         return { success: true };
@@ -442,8 +444,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               setIsGuest(false);
 
         // Persist token and user to SecureStore for auto-login on next launch
-        await SecureStore.setItemAsync(SECURE_TOKEN_KEY, res.token);
-        await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(loggedUser));
+        await SecureStore.setItemAsync(SECURE_TOKEN_KEY, res.token).catch(() => {});
+        await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(loggedUser)).catch(() => {});
 
         await fetchUserDataFromBackend(loggedUser.id);
         return { success: true };
@@ -487,7 +489,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setUser(loggedUser);
       setIsAuthenticated(true);
               setIsGuest(false);
-      await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(loggedUser));
+      await SecureStore.setItemAsync(SECURE_USER_KEY, JSON.stringify(loggedUser)).catch(() => {});
       api.registerPushToken(`fcm-${userId}-${Date.now()}`, 'android').catch(() => {});
       await fetchUserDataFromBackend(userId);
       return { success: true };
@@ -547,6 +549,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     durationMins,
     creditsSpent,
     facilityImage,
+    membershipId,
   }: {
     facilityId: string;
     facilityName: string;
@@ -558,6 +561,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     durationMins: 60 | 120;
     creditsSpent: number;
     facilityImage?: string;
+    membershipId?: string;
   }) => {
     const now = new Date();
     const formattedDate = dateStr === 'Today'
@@ -577,12 +581,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       formattedDate >= m.activatedDate &&
       formattedDate <= m.expiryDate;
 
+    // Explicit pass selection wins (BOOK tapped on a specific pass card).
+    const explicitM = membershipId
+      ? userMemberships.find((m) => String(m.id) === String(membershipId))
+      : undefined;
+
     const facilityPasses = userMemberships.filter(
       (m) => String(m.facilityId) === String(facilityId),
     );
     const pool = facilityPasses.length > 0 ? facilityPasses : userMemberships;
 
     const activeM =
+      explicitM ||
       pool.find((m) => coversDate(m) && m.status === 'ACTIVE') ||
       pool.find((m) => coversDate(m)) ||
       pool.find((m) => m.status === 'ACTIVE') ||

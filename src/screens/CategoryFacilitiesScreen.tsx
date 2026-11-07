@@ -11,11 +11,11 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../theme/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { getActivityIcon } from '../utils/activityIcons';
-import { BlurHeader, useBlurBackHeaderLayout } from '../components/Blur';
 import { FacilityCard } from '../components/FacilityCard';
-import { IconButton, OutlineButton } from '../components/buttons';
+import { RoundIconButton, ArenaEmptyState, Eyebrow } from '../components/ArenaUI';
 import { useApp } from '../context/AppContext';
 import { AppBackground } from '../components/Background';
 import { api } from '../services/api';
@@ -27,10 +27,7 @@ interface CategoryFacilitiesScreenProps {
   navigation: any;
 }
 
-
 const PAGE_SIZE = 10;
-
-const capitalize = (v: string) => v.charAt(0).toUpperCase() + v.slice(1);
 
 export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> = ({
   route,
@@ -38,15 +35,13 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
 }) => {
   const { category = 'All', categoryTitle = 'Facilities' } = route.params || {};
   const { facilities: globalFacilities, colors, userCoords, nearLngLat } = useApp();
-  const { top: headerTop, height: headerHeight } = useBlurBackHeaderLayout();
+  const insets = useSafeAreaInsets();
 
-  // ── Filters (all server-side) ──────────────────────────────────────────
   const [searchInput, setSearchInput] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activity, setActivity] = useState<string | undefined>(undefined);
   const [activityOptions, setActivityOptions] = useState<string[]>([]);
 
-  // ── Paged results ──────────────────────────────────────────────────────
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [page, setPage] = useState<number>(1);
   const [totalDocs, setTotalDocs] = useState<number>(0);
@@ -56,11 +51,10 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [searching, setSearching] = useState<boolean>(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [focused, setFocused] = useState<boolean>(false);
 
-  // Guards against out-of-order responses while typing.
   const requestIdRef = useRef<number>(0);
 
-  // Debounce the search box → server query
   useEffect(() => {
     setSearching(true);
     const t = setTimeout(() => {
@@ -89,7 +83,7 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
         if (mode === 'append') setLoadingMore(true);
 
         const res = await api.getTenants(buildQuery(targetPage));
-        if (requestId !== requestIdRef.current) return; // stale response
+        if (requestId !== requestIdRef.current) return;
 
         if (res?.docs && Array.isArray(res.docs) && res.docs.length > 0) {
           const adapted = res.docs.map((t) => adaptTenantToFacility(t, userCoords));
@@ -99,8 +93,6 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
           setHasNextPage((res.page ?? targetPage) < (res.totalPages || 1));
           setFetchError(null);
         } else if (mode !== 'append') {
-          // Server returned nothing — fall back to cached list only when the
-          // request was unfiltered (pure offline / API-empty case).
           if (!searchQuery && !activity && targetPage === 1 && globalFacilities.length > 0) {
             const fallback = globalFacilities.filter((f) => {
               if (category === 'All') return true;
@@ -146,12 +138,10 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
     [buildQuery, category, searchQuery, activity, globalFacilities, userCoords]
   );
 
-  // Filter changes always restart from page 1
   useEffect(() => {
     fetchPage(1, 'reset');
   }, [fetchPage]);
 
-  // Collect activity chips for this category (single lightweight call)
   useEffect(() => {
     let cancelled = false;
     const loadActivityOptions = async () => {
@@ -197,9 +187,22 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
     setActivity(undefined);
   };
 
+  const topBarHeight = Math.max(insets.top, 12) + 56;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppBackground />
+
+      <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) + 6, height: topBarHeight }]}>
+        <RoundIconButton icon="arrow-back" onPress={() => navigation.goBack()} />
+        <Text style={styles.topBarTitle} numberOfLines={1}>
+          ARENA DIRECTORY
+        </Text>
+        <View style={styles.topBarCount}>
+          <Text style={styles.topBarCountText}>{totalDocs}</Text>
+        </View>
+      </View>
+
       <FlatList
         data={facilities}
         keyExtractor={(item) => item.id}
@@ -213,7 +216,7 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
           />
         )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        contentContainerStyle={[styles.listContent, { paddingTop: headerHeight + 20 }]}
+        contentContainerStyle={[styles.listContent, { paddingTop: topBarHeight + 18 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         removeClippedSubviews
@@ -223,7 +226,7 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
         updateCellsBatchingPeriod={60}
         refreshControl={
           <RefreshControl
-            progressViewOffset={headerHeight}
+            progressViewOffset={topBarHeight}
             refreshing={refreshing}
             onRefresh={handleRefresh}
             tintColor={COLORS.primary}
@@ -234,17 +237,24 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
         onEndReachedThreshold={0.5}
         ListHeaderComponent={
           <View style={styles.listHeader}>
-            {/* ── SEARCH (server-side, debounced) ── */}
-            <View style={styles.searchBar}>
-              <Ionicons name="search" size={17} color={colors.textMuted} />
+            <View style={styles.pageHead}>
+              <Eyebrow>Explore</Eyebrow>
+              <Text style={styles.pageTitle}>{String(categoryTitle).toUpperCase()}</Text>
+              <Text style={styles.pageSub}>Find a court, turf or studio and book your next session.</Text>
+            </View>
+
+            <View style={[styles.searchShell, focused && styles.searchShellFocused]}>
+              <Ionicons name="search" size={18} color={COLORS.muted} />
               <TextInput
                 value={searchInput}
                 onChangeText={setSearchInput}
-                placeholder={`Search ${categoryTitle.toLowerCase()}...`}
-                placeholderTextColor={colors.textMuted}
-                style={[styles.searchInput, { color: colors.onSurface }]}
+                placeholder={`Search ${String(categoryTitle).toLowerCase()}...`}
+                placeholderTextColor={COLORS.meta}
+                style={styles.searchInput}
                 returnKeyType="search"
                 autoCorrect={false}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
               />
               {searching || searchInput.length > 0 ? (
                 <TouchableOpacity
@@ -252,15 +262,14 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   {searching && searchQuery === searchInput.trim() ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <ActivityIndicator size="small" color={COLORS.primary} />
                   ) : (
-                    <Ionicons name="close-circle" size={17} color={colors.textMuted} />
+                    <Ionicons name="close" size={17} color={COLORS.muted} />
                   )}
                 </TouchableOpacity>
               ) : null}
             </View>
 
-            {/* ── FILTER CHIPS (server-side activity filter) ── */}
             {activityOptions.length > 0 && (
               <ScrollView
                 horizontal
@@ -273,7 +282,7 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
                   onPress={() => setActivity(undefined)}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="apps" size={12} color={!activity ? colors.primary : colors.textMuted} />
+                  <Ionicons name="grid-outline" size={12} color={!activity ? COLORS.primary : COLORS.muted} />
                   <Text style={[styles.chipText, !activity && styles.chipTextActive]}>ALL</Text>
                 </TouchableOpacity>
                 {activityOptions.map((opt) => {
@@ -288,7 +297,7 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
                       <MaterialCommunityIcons
                         name={getActivityIcon(opt)}
                         size={13}
-                        color={isActive ? colors.primary : colors.textMuted}
+                        color={isActive ? COLORS.primary : COLORS.muted}
                       />
                       <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
                         {opt.toUpperCase()}
@@ -299,7 +308,6 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
               </ScrollView>
             )}
 
-            {/* ── RESULTS META ── */}
             <View style={styles.metaRow}>
               <Text style={styles.metaText}>
                 {loading ? 'SEARCHING…' : `${totalDocs} ${totalDocs === 1 ? 'CENTER' : 'CENTERS'}`}
@@ -309,7 +317,7 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
 
             {fetchError && (
               <View style={styles.errorBanner}>
-                <Ionicons name="cloud-offline-outline" size={14} color={COLORS.tertiary} />
+                <Ionicons name="cloud-offline-outline" size={14} color={COLORS.primary} />
                 <Text style={styles.errorBannerText}>{fetchError}</Text>
               </View>
             )}
@@ -317,25 +325,22 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
         }
         ListEmptyComponent={
           !loading ? (
-            <View style={[styles.emptyCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-              <Ionicons name="barbell-outline" size={40} color={colors.textMuted} />
-              <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>No Centers Found</Text>
-              <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-                {hasActiveFilters
-                  ? `Nothing matches your filters in ${categoryTitle}.`
-                  : `No ${categoryTitle.toLowerCase()} centers available right now.`}
-              </Text>
-              {hasActiveFilters && (
-                <OutlineButton
-                  label="CLEAR FILTERS"
-                  icon="close"
-                  color={colors.primary}
-                  compact
-                  onPress={clearFilters}
-                  style={styles.emptyAction}
-                />
-              )}
-            </View>
+            <ArenaEmptyState
+              icon="barbell-outline"
+              title="No centers found"
+              copy={
+                hasActiveFilters
+                  ? `Nothing matches your filters in ${String(categoryTitle)}.`
+                  : `No ${String(categoryTitle).toLowerCase()} centers available right now.`
+              }
+              action={
+                hasActiveFilters && (
+                  <TouchableOpacity onPress={clearFilters} style={{ marginTop: 4 }}>
+                    <Text style={styles.clearLink}>CLEAR FILTERS</Text>
+                  </TouchableOpacity>
+                )
+              }
+            />
           ) : (
             <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 60 }} />
           )
@@ -351,29 +356,6 @@ export const CategoryFacilitiesScreen: React.FC<CategoryFacilitiesScreenProps> =
           ) : null
         }
       />
-
-      {/* Floating blur header — list scrolls behind it */}
-      <BlurHeader
-        height={headerHeight}
-        contentStyle={{
-          paddingTop: headerTop,
-          paddingHorizontal: SPACING.containerPadding,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <IconButton
-          icon="arrow-back"
-          size={40}
-          iconSize={22}
-          iconColor={colors.onSurface}
-          backgroundColor={colors.glassHigh}
-          onPress={() => navigation.goBack()}
-        />
-        <Text style={[styles.topBarTitle, { color: colors.onSurface }]}>{categoryTitle.toUpperCase()}</Text>
-        <View style={{ width: 40 }} />
-      </BlurHeader>
     </View>
   );
 };
@@ -383,49 +365,92 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: SPACING.containerPadding,
+    paddingBottom: 8,
+    backgroundColor: COLORS.background,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lineSoft,
+  },
   topBarTitle: {
-    fontSize: 16,
+    flex: 1,
+    color: COLORS.muted,
     fontFamily: FONTS.extraBold,
-    color: COLORS.onSurface,
-    letterSpacing: 0.5,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 1.4,
+  },
+  topBarCount: {
+    minWidth: 30,
+    height: 30,
+    paddingHorizontal: 8,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surfaceBright,
+  },
+  topBarCountText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 11,
   },
   listContent: {
     paddingHorizontal: SPACING.containerPadding,
     paddingBottom: SPACING.xl,
   },
   listHeader: {
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  listItem: {
-    flex: 1,
+  pageHead: {
+    marginBottom: 18,
   },
-  separator: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    marginVertical: 22,
+  pageTitle: {
+    marginTop: 6,
+    color: COLORS.paper,
+    fontFamily: FONTS.display,
+    fontSize: 38,
+    lineHeight: 36,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
-
-  // ── Search ──
-  searchBar: {
+  pageSub: {
+    maxWidth: 320,
+    marginTop: 8,
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  searchShell: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: COLORS.glass,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: 16,
-    height: 46,
+    gap: 9,
+    minHeight: 54,
+    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-    marginTop: 8,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.surface,
+  },
+  searchShellFocused: {
+    borderColor: COLORS.primary,
   },
   searchInput: {
     flex: 1,
+    paddingVertical: 8,
+    color: COLORS.paper,
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    fontFamily: FONTS.regular,
-    paddingVertical: 0,
+    lineHeight: 19,
   },
-
-  // ── Filter chips ──
   chipsRow: {
     marginTop: 12,
     marginHorizontal: -SPACING.containerPadding,
@@ -437,39 +462,39 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 13,
+    gap: 5,
     height: 32,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.glass,
+    paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
   },
   chipActive: {
-    backgroundColor: COLORS.emberPanel,
-    borderColor: COLORS.emberBorder,
+    borderColor: COLORS.primaryBorder,
+    backgroundColor: COLORS.primaryMuted,
   },
   chipText: {
-    fontSize: 10,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1,
-    color: COLORS.textMuted,
+    color: COLORS.muted,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 0.7,
   },
   chipTextActive: {
     color: COLORS.primary,
   },
-
-  // ── Meta ──
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 16,
   },
   metaText: {
-    fontSize: 10.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.2,
-    color: COLORS.textMuted,
+    color: COLORS.meta,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9.5,
+    lineHeight: 12,
+    letterSpacing: 0.9,
   },
   errorBanner: {
     flexDirection: 'row',
@@ -478,41 +503,29 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingHorizontal: 12,
     paddingVertical: 9,
-    borderRadius: RADIUS.lg,
-    backgroundColor: 'rgba(255,164,43,0.10)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,164,43,0.28)',
+    borderWidth: 1,
+    borderColor: COLORS.primaryBorder,
+    borderRadius: RADIUS.default,
+    backgroundColor: COLORS.primaryMuted,
   },
   errorBannerText: {
     flex: 1,
-    fontSize: 11.5,
+    color: COLORS.primary,
     fontFamily: FONTS.medium,
-    color: COLORS.tertiary,
+    fontSize: 11,
+    lineHeight: 15,
   },
-
-  // ── Empty / footer ──
-  emptyCard: {
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginTop: SPACING.md,
-    borderWidth: 1,
-    ...SHADOWS.card,
+  listItem: {
+    flex: 1,
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    marginTop: 10,
+  separator: {
+    height: 24,
   },
-  emptySub: {
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 17,
-  },
-  emptyAction: {
-    marginTop: SPACING.sm,
+  clearLink: {
+    color: COLORS.primary,
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    letterSpacing: 0.9,
   },
   footerLoader: {
     flexDirection: 'row',
@@ -522,16 +535,16 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   footerLoaderText: {
-    fontSize: 11,
+    color: COLORS.muted,
     fontFamily: FONTS.medium,
-    color: COLORS.textMuted,
+    fontSize: 11,
   },
   endText: {
-    textAlign: 'center',
-    fontSize: 9.5,
-    fontFamily: FONTS.bold,
-    letterSpacing: 1.6,
-    color: 'rgba(255,255,255,0.28)',
     paddingVertical: 22,
+    color: COLORS.meta,
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    letterSpacing: 1.4,
+    textAlign: 'center',
   },
 });

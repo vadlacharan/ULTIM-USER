@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleProp, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FONTS, RADIUS } from '../../theme/theme';
+import { COLORS, FONTS } from '../../theme/theme';
 import { AnimatedPressable } from './AnimatedPressable';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -13,7 +13,7 @@ interface OutlineButtonProps {
   iconPosition?: 'left' | 'right';
   /** Accent used for border, text and icon — defaults to the app's primary orange. */
   color: string;
-  /** Background tint behind the border, usually `${color}1A`-style translucent fill. */
+  /** Background tint behind the border. Arena outline buttons stay transparent. */
   tintColor?: string;
   disabled?: boolean;
   fullWidth?: boolean;
@@ -23,9 +23,8 @@ interface OutlineButtonProps {
 }
 
 /**
- * Secondary action button — a soft tinted, bordered pill with the same
- * tactile press animation as `GradientButton` but visually one step down
- * in emphasis. Use for "Cancel", "Retry", "Sign Out", "View Details", etc.
+ * Secondary arena action: a hairline outlined block. It sits one step below
+ * the solid orange primary CTA and keeps the same 14px geometry.
  */
 export const OutlineButton: React.FC<OutlineButtonProps> = ({
   label,
@@ -40,12 +39,14 @@ export const OutlineButton: React.FC<OutlineButtonProps> = ({
   style,
   textStyle,
 }) => {
-  const resolvedTint = tintColor ?? `${color}14`;
+  const isNeutral = color === COLORS.paper || color === COLORS.onSurface;
+  const borderColor = isNeutral ? COLORS.line : `${color}99`;
 
   return (
     <AnimatedPressable
       onPress={onPress}
       disabled={disabled}
+      scaleTo={0.975}
       style={[fullWidth && styles.fullWidth, style]}
     >
       <View
@@ -53,11 +54,11 @@ export const OutlineButton: React.FC<OutlineButtonProps> = ({
           styles.base,
           compact ? styles.compact : styles.regular,
           fullWidth && styles.fullWidth,
-          { backgroundColor: resolvedTint, borderColor: color },
+          { backgroundColor: tintColor ?? 'transparent', borderColor },
         ]}
       >
         {icon && iconPosition === 'left' && (
-          <Ionicons name={icon} size={compact ? 14 : 16} color={color} style={styles.iconLeft} />
+          <Ionicons name={icon} size={compact ? 13 : 15} color={color} style={styles.iconLeft} />
         )}
         <Text
           style={[
@@ -70,7 +71,7 @@ export const OutlineButton: React.FC<OutlineButtonProps> = ({
           {label}
         </Text>
         {icon && iconPosition === 'right' && (
-          <Ionicons name={icon} size={compact ? 14 : 16} color={color} style={styles.iconRight} />
+          <Ionicons name={icon} size={compact ? 13 : 15} color={color} style={styles.iconRight} />
         )}
       </View>
     </AnimatedPressable>
@@ -85,30 +86,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: RADIUS.full,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
   },
   regular: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    minHeight: 50,
+    paddingHorizontal: 22,
   },
   compact: {
-    paddingVertical: 7,
-    paddingHorizontal: 15,
+    minHeight: 38,
+    paddingHorizontal: 14,
   },
   text: {
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.extraBold,
     textAlign: 'center',
     textTransform: 'uppercase',
   },
   textRegular: {
-    fontSize: 13,
-    letterSpacing: 1.6,
+    fontSize: 11,
+    letterSpacing: 0.55,
   },
   textCompact: {
-    fontSize: 10.5,
-    letterSpacing: 1.2,
+    fontSize: 9.5,
+    letterSpacing: 0.45,
   },
   iconLeft: {
     marginRight: 7,

@@ -176,13 +176,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.glass,
-    borderTopLeftRadius: RADIUS.xl,
-    borderTopRightRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: RADIUS.panel,
+    borderTopRightRadius: RADIUS.panel,
     padding: SPACING.containerPadding,
     maxHeight: '85%',
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: COLORS.line,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -191,11 +191,12 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   modalTitle: {
-    fontSize: 20,
-    fontFamily: FONTS.extraBold,
-    letterSpacing: -0.3,
-    lineHeight: 26,
-    color: COLORS.onSurface,
+    fontSize: 30,
+    fontFamily: FONTS.display,
+    letterSpacing: 0.4,
+    lineHeight: 29,
+    color: COLORS.paper,
+    textTransform: 'uppercase',
   },
   modalSubTitle: {
     fontSize: 12,
@@ -207,12 +208,12 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.glassHigh,
-    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surfaceBright,
+    borderRadius: 14,
     paddingHorizontal: 12,
-    height: 48,
+    height: 54,
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: COLORS.line,
     marginBottom: SPACING.sm,
   },
   inputIcon: {
@@ -227,10 +228,10 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   sectionTitle: {
-    fontSize: 11,
-    fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
-    letterSpacing: 0.5,
+    fontSize: 9.5,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.meta,
+    letterSpacing: 1,
     marginBottom: 8,
   },
   presetList: {
@@ -245,7 +246,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   selectedDistrictItem: {
-    backgroundColor: 'rgba(255, 90, 31, 0.12)',
+    backgroundColor: COLORS.primaryMuted,
   },
   districtText: {
     flex: 1,
