@@ -13,80 +13,13 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Rect, Path } from 'react-native-svg';
+import QRCode from 'react-native-qrcode-svg';
 import { COLORS, FONTS, RADIUS, SPACING } from '../theme/theme';
 import { Booking } from '../types';
 import { api } from '../services/api';
 import { useApp } from '../context/AppContext';
 import { Eyebrow, RoundIconButton } from './ArenaUI';
 import { formatClock, formatDateLong } from '../utils/display';
-
-/**
- * Single-Path SVG QR Code component 100% compliant with React 19 & Hermes compiler.
- */
-const PureSVGQRCode: React.FC<{ value: string; size: number }> = ({ value, size }) => {
-  const gridSize = 21;
-  const cellSize = size / gridSize;
-
-  const pathData = useMemo(() => {
-    const grid: boolean[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
-
-    const markFinder = (startRow: number, startCol: number) => {
-      for (let r = 0; r < 7; r++) {
-        for (let c = 0; c < 7; c++) {
-          if (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4)) {
-            grid[startRow + r][startCol + c] = true;
-          }
-        }
-      }
-    };
-
-    markFinder(0, 0);
-    markFinder(0, 14);
-    markFinder(14, 0);
-
-    for (let i = 8; i < 13; i += 2) {
-      grid[6][i] = true;
-      grid[i][6] = true;
-    }
-
-    let hash = 0;
-    for (let i = 0; i < value.length; i++) {
-      hash = (hash << 5) - hash + value.charCodeAt(i);
-      hash |= 0;
-    }
-
-    for (let r = 0; r < gridSize; r++) {
-      for (let c = 0; c < gridSize; c++) {
-        if ((r < 8 && c < 8) || (r < 8 && c > 12) || (r > 12 && c < 8)) continue;
-        if (r === 6 || c === 6) continue;
-
-        const val = Math.abs(Math.sin((r + 1) * (c + 1) * hash) * 10000);
-        grid[r][c] = Math.floor(val) % 2 === 0;
-      }
-    }
-
-    let d = '';
-    for (let r = 0; r < gridSize; r++) {
-      for (let c = 0; c < gridSize; c++) {
-        if (grid[r][c]) {
-          const x = (c * cellSize).toFixed(2);
-          const y = (r * cellSize).toFixed(2);
-          const w = (cellSize + 0.15).toFixed(2);
-          d += `M${x},${y}h${w}v${w}h-${w}z `;
-        }
-      }
-    }
-    return d;
-  }, [value, size, cellSize]);
-
-  return (
-    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <Rect width={size} height={size} fill="#FFFFFF" rx={6} />
-      <Path d={pathData} fill="#0A0B0D" />
-    </Svg>
-  );
-};
 
 interface QRCodeModalProps {
   visible: boolean;
@@ -211,7 +144,14 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ visible, booking, onCl
                     <ActivityIndicator size="large" color={COLORS.primary} />
                   </View>
                 ) : (
-                  <PureSVGQRCode value={token} size={190} />
+                  <QRCode
+                    value={token}
+                    size={240}
+                    color="#0A0B0D"
+                    backgroundColor="#FFFFFF"
+                    ecl="M"
+                    quietZone={10}
+                  />
                 )}
               </View>
               <Text style={styles.qrCodeLabel}>HEXADECIMAL ENTRY CODE</Text>
