@@ -2,7 +2,7 @@
   "expo": {
     "name": "ultim",
     "slug": "ultim",
-    "version": "1.0.1",
+    "version": "4.0.2",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "dark",
@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ultim.app",
-      "buildNumber": "2",
+      "buildNumber": "16",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Allow ULTIM to access your location to discover nearby sports and fitness centers.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow ULTIM to access your location to discover nearby sports and fitness centers."
@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.ultim.app",
-      "versionCode": 2,
+      "versionCode": 13,
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#0A0B0D"
